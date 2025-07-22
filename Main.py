@@ -52,7 +52,7 @@ def fetch_public_calls(url: str) -> list[str]:
         # Extrai e limpa os títulos com tratamento especial para caracteres
         calls = []
         for container in soup.select ('div.chamada-item'):
-            title_tag = container.find('h3') or container.find (['h2', 'h4'])
+            title_tag = container.find('h3') or container.find (['h1','h2','h3', 'h4', 'h5', 'h6'])
             if not title_tag:
                 continue
             
@@ -61,6 +61,7 @@ def fetch_public_calls(url: str) -> list[str]:
 
 
             link_tag = container.find ('a', href = True)
+            
 
             if link_tag:
                 link = link_tag ['href'] if link_tag ['href'] .startswith ('http') else f"{url.rstrip('/')}/{link_tag['href'].lstrip('/')}"
@@ -87,6 +88,8 @@ def fetch_public_calls(url: str) -> list[str]:
 def main():
     # Constants should be in uppercase
     FINE_PUBLIC_CALLS_URL = 'https://www.finep.gov.br/chamadas-publicas'
+
+    print("Iniciando coleta de Chamadas Públicas da FINEP...")
     
     public_calls = fetch_public_calls(FINE_PUBLIC_CALLS_URL)
     
@@ -98,6 +101,17 @@ def main():
                 print (f" Link: {call ['Link']}")
     else:
         print("Sem chamadas públicas Disponíveis ou erro.")
+
+    # Save to CSV
+
+    try:
+        with open('chamadas_publicas.csv', 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=public_calls[0].keys())
+            writer.writeheader()
+            writer.writerows(public_calls)
+        print("\n✅ Dados salvos em 'chamadas_publicas.csv'")
+    except Exception as e:
+        print(f"\n⚠️ Erro ao salvar CSV: {str(e)}")
 
 if __name__ == '__main__':
     main()
