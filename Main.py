@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import csv
 from datetime import datetime
+from urllib.parse import urljoin
 
 
 def fix_special_characters (text: str) -> str:
@@ -22,7 +23,7 @@ def fix_special_characters (text: str) -> str:
 
     
 
-def fetch_public_calls(url: str) -> list[str]:
+def fetch_public_calls(url: str) -> list[dict]:
     """
     Fetch and return titles of public calls from FINEP website.
     
@@ -42,25 +43,30 @@ def fetch_public_calls(url: str) -> list[str]:
         # Faz a requisição com timeout e tratamento de erros
         response = requests.get(url, headers=headers, timeout=15)
         response.encoding = 'iso-8859-1' # Ensure correct encoding
-        response.raise_for_status()  # Raises HTTPError for bad responses
+        
         
         # Parseia  o conteúdo HTML
         soup = BeautifulSoup(response.text, 'html.parser')
+
+        containers = soup.select('.item-chamada, .chamada-item, article, div.card') or \
+                   soup.find_all(['div', 'section'], class_=True)
 
         
         
         # Extrai e limpa os títulos com tratamento especial para caracteres
         calls = []
-        for container in soup.select ('div.chamada-item'):
-            title_tag = container.find('h3') or container.find (['h1','h2','h3', 'h4', 'h5', 'h6'])
+        seen_links = set()
+        for container in containers:
+            title_tag = container.find(['h1','h2','h3', 'h4', 'h5', 'h6'])
             if not title_tag:
                 continue
             
             #correção do link
             title = fix_special_characters (title_tag.get_text (strip = True))
-
-
             link_tag = container.find ('a', href = True)
+            link = urljoin (url,link_tag ['href']) if link_tag else ''
+
+            
             
 
             if link_tag:
@@ -69,14 +75,14 @@ def fetch_public_calls(url: str) -> list[str]:
             else:
                 link = '' \
                 ''
-
-            
-
-            calls.append({
-                'Titulo': title,
-                'Link': link,
-                'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            })
+            #Filtro para remover link generico
+            if (link not in seen_links and not link.endswith (('acessibilidade', 'chamadas-publicas')) and '/chamadapublica/'in link):            
+                calls.append({
+                    'Titulo': title,
+                    'Link': link,
+                    'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                })
+                seen_links.add(link)
 
         return calls
 
@@ -97,7 +103,7 @@ def main():
         print("Chamadas Públicas Disponíveis:")
         for i, call in enumerate(public_calls, 1):
             print(f"{i}. {call}")
-            if call ['link']:
+            if call ['Link']:
                 print (f" Link: {call ['Link']}")
     else:
         print("Sem chamadas públicas Disponíveis ou erro.")
