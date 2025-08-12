@@ -1,34 +1,43 @@
-import requests
+import os
 import re
-from bs4 import BeautifulSoup
 import csv
+import requests
+from io import BytesIO
 from datetime import datetime
 from urllib.parse import urljoin
-from playwright.sync_api import sync_playwright
-from io import BytesIO
-import os
-import PyPDF2
+from bs4 import BeautifulSoup
 
-USE_PLAYWRIGHT = False  # Constantes em maiúsculo
-PDF_DOWNLOAD_FOLDER = 'pdf_downloads'  # Pasta para downloads de PDFs
-os.makedirs(PDF_DOWNLOAD_FOLDER, exist_ok=True)  # Cria a pasta se não existir
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    sync_playwright = None
+try:
+    import PyPDF2
+except ImportError:
+    PyPDF2 = None
 
+USE_PLAYWRIGHT = False
+PDF_DOWNLOAD_FOLDER = 'pdf_downloads'
+os.makedirs(PDF_DOWNLOAD_FOLDER, exist_ok=True)
 
 def extract_text_from_pdf(pdf_url: str) -> str:
-    """Extrai texto de um PDF a partir de uma URL"""
+    """Extrai texto de um PDF a partir de uma URL."""
+    if not PyPDF2:
+        print("PyPDF2 não está instalado.")
+        return ""
     try:
         response = requests.get(pdf_url, timeout=15)
         response.raise_for_status()
         with BytesIO(response.content) as pdf_file:
             reader = PyPDF2.PdfReader(pdf_file)
-            text = "\n".join([page.extract_text() for page in reader.pages])
+            text = "\n".join([page.extract_text() or "" for page in reader.pages])
             return text
     except Exception as e:
         print(f"Erro ao extrair texto do PDF {pdf_url}: {e}")
         return ""
-    
+
 def find_pdf_links(html: str, base_url: str) -> list:
-    """Encontra todos os links para PDFs em uma página HTML"""
+    """Encontra todos os links para PDFs em uma página HTML."""
     soup = BeautifulSoup(html, 'html.parser')
     pdf_links = []
     for link in soup.find_all('a', href=True):
@@ -39,21 +48,18 @@ def find_pdf_links(html: str, base_url: str) -> list:
     return pdf_links
 
 def extract_info_from_pdf_text(text: str) -> dict:
-    """Extrai informações específicas do texto de PDFs"""
+    """Extrai informações específicas do texto de PDFs."""
     info = {
         'Valor_Global_PDF': 'Informação não encontrada',
         'Prazo_Submissao_PDF': 'Informação não encontrada',
         'Contato_PDF': 'Informação não encontrada'
     }
-    # Busca por valores financeiros no PDF
     valor_match = re.search(r'(valor\s*total|investimento\s*total|recursos\s*disponíveis)[:\s]*R\$\s*([\d.,]+)', text, re.IGNORECASE)
     if valor_match:
         info['Valor_Global_PDF'] = f"R$ {valor_match.group(2)}"
-    # Busca por prazos no PDF
     prazo_match = re.search(r'(prazo\s*para\s*submiss[ãa]o|envio\s*de\s*propostas)[:\s]*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
     if prazo_match:
         info['Prazo_Submissao_PDF'] = prazo_match.group(2)
-    # Busca por contatos no PDF
     contato_match = re.search(r'(contato|dúvidas|informações)[:\s]*([^\n]+@[^\n]+|\(?\d{2,}\)?[\s-]?\d{4,5}[\s-]?\d{4})', text, re.IGNORECASE)
     if contato_match:
         info['Contato_PDF'] = contato_match.group(2).strip()
@@ -62,24 +68,23 @@ def extract_info_from_pdf_text(text: str) -> dict:
 def fix_special_characters(text: str) -> str:
     """Corrige caracteres especiais em textos extraídos de sites brasileiros."""
     try:
-        return text.encode('latin-1').decode('utf-8')
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        try:
-            return text.encode('utf-8').decode('utf-8')
-        except UnicodeDecodeError:
-            return text.encode('utf-8', errors='replace').decode('utf-8')
+        return text.encode('latin1').decode('utf-8')
+    except Exception:
+        return text
 
-def fetch_with_playwright(url: str) -> tuple[str | None, dict]:
+def fetch_with_playwright(url: str):
     """Obtém o HTML renderizado usando Playwright."""
+    if not sync_playwright:
+        print("Playwright não está instalado.")
+        return None, {}
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             page.goto(url, timeout=15000)
             page.wait_for_load_state('networkidle')
-            # Rolamento da página para carregar conteúdo dinâmico
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)  # Espera 2 segundos para garantir que o conteúdo dinâmico seja carregado
+            page.wait_for_timeout(2000)
             html = page.content()
             screenshot_path = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
             page.screenshot(path=screenshot_path, full_page=True)
@@ -90,7 +95,7 @@ def fetch_with_playwright(url: str) -> tuple[str | None, dict]:
         return None, {}
 
 def extract_additional_details(html: str, base_url: str) -> dict:
-    """Extrai detalhes adicionais de uma chamada pública, como descrição e data de publicação."""
+    """Extrai detalhes adicionais de uma chamada pública."""
     soup = BeautifulSoup(html, 'html.parser')
     details = {
         'Linha_Tematica': 'Não informado',
@@ -109,21 +114,18 @@ def extract_additional_details(html: str, base_url: str) -> dict:
         'PDFs_Encontrados': 0,
         'Conteudo_PDFs': 'Nenhum PDF encontrado'
     }
-    # Busca por PDFs na página
     pdf_links = find_pdf_links(html, base_url)
     details['PDFs_Encontrados'] = len(pdf_links)
     if pdf_links:
         pdf_contents = []
-        for pdf_url in pdf_links[:2]:  # Limita a 2 PDFs para não sobrecarregar
+        for pdf_url in pdf_links[:2]:
             pdf_text = extract_text_from_pdf(pdf_url)
             if pdf_text:
-                pdf_contents.append(f"PDF: {pdf_url}\nConteúdo:\n{pdf_text[:1000]}...")  # Limita a 1000 caracteres
-                # Extrai informações específicas do PDF
+                pdf_contents.append(f"PDF: {pdf_url}\nConteúdo:\n{pdf_text[:1000]}...")
                 pdf_info = extract_info_from_pdf_text(pdf_text)
                 details.update(pdf_info)
         if pdf_contents:
             details['Conteudo_PDFs'] = "\n\n".join(pdf_contents)
-    # Mapeamento de campos para padrões de busca
     field_mapping = {
         'Linha_Tematica': r'linha\s*tem[áa]tica|área\s*tem[áa]tica',
         'Publico_Alvo': r'público[\-\s]alvo|destinatários',
@@ -141,14 +143,16 @@ def extract_additional_details(html: str, base_url: str) -> dict:
     for field, pattern in field_mapping.items():
         element = soup.find(string=re.compile(pattern, re.IGNORECASE))
         if element:
-            value = element.find_next(string=True)
-            details[field] = fix_special_characters(value.strip()) if value else 'Encontrado, mas sem valor específico'
-    # Tratamento para valores financeiros
-    money_fields = ['Valor_Global', 'Valor_Projeto']
-    for field in money_fields:
+            next_value = element.find_next(string=True)
+            if next_value and next_value != element:
+                details[field] = fix_special_characters(next_value.strip())
+            else:
+                details[field] = fix_special_characters(element.strip())
+    for field in ['Valor_Global', 'Valor_Projeto']:
         if field in details:
             match = re.search(r'R\$\s*([\d.,]+)', details[field])
-            details[field] = match.group(0) if match else details[field]
+            if match:
+                details[field] = match.group(0)
     return details
 
 def fetch_call_details(url: str) -> dict:
@@ -171,10 +175,8 @@ def fetch_call_details(url: str) -> dict:
     details.update(metadata)
     return details
 
-def fetch_public_calls(url: str) -> list[dict]:
-    """
-    Busca e retorna uma lista de chamadas públicas disponíveis na página fornecida.
-    """
+def fetch_public_calls(url: str) -> list:
+    """Busca e retorna uma lista de chamadas públicas disponíveis na página fornecida."""
     if USE_PLAYWRIGHT:
         html, _ = fetch_with_playwright(url)
     else:
@@ -205,11 +207,7 @@ def fetch_public_calls(url: str) -> list[dict]:
             continue
         title = fix_special_characters(title_tag.get_text(strip=True))
         link_tag = container.find('a', href=True)
-        if link_tag:
-            link = urljoin(url, link_tag['href'])
-        else:
-            link = ''
-        # Filtro para remover links genéricos e duplicados
+        link = urljoin(url, link_tag['href']) if link_tag else ''
         if (link and link not in seen_links and
             not link.endswith(('acessibilidade', 'chamadas-publicas')) and
             '/chamadapublica/' in link):
@@ -219,12 +217,10 @@ def fetch_public_calls(url: str) -> list[dict]:
                 'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'Metodo': method
             }
-            # Obtenção de detalhes adicionais
             details = fetch_call_details(link)
             call_data.update(details)
             calls.append(call_data)
             seen_links.add(link)
-            # Limita a 3 chamadas para teste
             if len(calls) >= 3:
                 break
     return calls
@@ -238,7 +234,6 @@ def main():
         print("Chamadas Públicas Disponíveis:")
         print(f"Total de Chamadas Encontradas: {len(public_calls)}\n")
         print(f"Campos coletados por chamada: {len(public_calls[0].keys())}\n")
-        # Exibe preview dos dados coletados
         for i, call in enumerate(public_calls, 1):
             print(f"{i}. {call['Titulo']}")
             print(f" Link: {call['Link']} (Método: {call['Metodo']})")
@@ -251,7 +246,6 @@ def main():
             print(f"   Valor Global (PDF): {call.get('Valor_Global_PDF', 'N/A')}")
             print(f"   Modalidade: {call['Modalidade']}")
             print(f"   Contato (PDF): {call.get('Contato_PDF', 'N/A')}")
-        # Salvando os dados em CSV
         try:
             with open('chamadas_publicas.csv', 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.DictWriter(f, fieldnames=public_calls[0].keys())
@@ -264,13 +258,4 @@ def main():
         print("Nenhuma chamada pública encontrada.")
 
 if __name__ == '__main__':
-    try:
-        import playwright
-        import PyPDF2
-    except ImportError:
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "playwright", "PyPDF2"])
-        subprocess.check_call(["playwright", "install"])
-        subprocess.check_call(["playwright", "install-deps"])
     main()
