@@ -1,109 +1,13 @@
-<<<<<<< HEAD
-import requests
-from bs4 import BeautifulSoup
-=======
 import os
-import re
->>>>>>> eef6faa96b27bc865b0eae3b3b4823edde9d22c3
 import csv
 import requests
+from bs4 import BeautifulSoup
 from io import BytesIO
 from datetime import datetime
 from urllib.parse import urljoin
-<<<<<<< HEAD
-from playwright.sync_api import sync_playwright
+import json
 import re
-import io
-import PyPDF2
-import os
-
-# Configurações
-USE_PLAYWRIGHT = True
-USE_AI_ANALYSIS = True  # Nova configuração para análise com IA
-PDF_DOWNLOAD_FOLDER = "pdfs"
-os.makedirs(PDF_DOWNLOAD_FOLDER, exist_ok=True)
-
-def extract_finep_pdf_data(pdf_url: str) -> dict:
-    """Extrai dados específicos dos PDFs da FINEP"""
-    try:
-        print(f"Processando PDF: {pdf_url}")
-        response = requests.get(pdf_url, timeout=20)
-        pdf_file = io.BytesIO(response.content)
-        
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        full_text = ""
-        
-        # Complemento: Remove o limite de 10 páginas para ler o PDF inteiro.
-        # Garante que dados em páginas posteriores não sejam perdidos.
-        for page in pdf_reader.pages:
-            text = page.extract_text()
-            if text:
-                full_text += text + "\n"
-        
-        # Padrões específicos para editais FINEP (EXPANDIDOS PARA MAIOR COMPATIBILIDADE)
-        patterns = {
-            'Valor_Global': [
-                # Complemento: Adiciona novas variações de termos.
-                r"recursos\s*financeiros.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"valor\s*global.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"valor\s*total.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"investimento\s*total.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"recursos\s*totais.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)" # Nova variação
-            ],
-            'Valor_Projeto': [
-                # Complemento: Adiciona novas variações de termos.
-                r"valor\s*de\s*cada\s*proposta.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"valor\s*máximo\s*por\s*projeto.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"valor\s*por\s*proposta.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"limite\s*por\s*projeto.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)",
-                r"apoio\s*financeiro\s*por\s*proposta.*?(R\$\s*[\d.,]+(?:\s*(?:mil|milh[oõ]es|bilh[oõ]es))?)" # Nova variação
-            ],
-            'Prazo_Submissao': [
-                # Complemento: Adiciona novas variações de termos e formatos de data.
-                r"período\s*de\s*submissão.*?(?:até|a)\s*(\d{1,2}[/.]\d{1,2}[/.]\d{4})", # Padrão com "período" e aceita . ou /
-                r"submissão\s*das\s*propostas\s*até.*?(\d{1,2}\s*de\s*\w+\s*de\s*\d{4})",
-                r"envio\s*de\s*propostas\s*até.*?(\d{1,2}[/.]\d{1,2}[/.]\d{4})", # Aceita . ou /
-                r"prazo\s*para\s*submissão.*?(\d{1,2}[/.]\d{1,2}[/.]\d{4})", # Aceita . ou /
-                r"data\s*limite.*?submissão.*?(\d{1,2}[/.]\d{1,2}[/.]\d{4})", # Aceita . ou /
-                r"encerramento.*?(\d{1,2}[/.]\d{1,2}[/.]\d{4})", # Aceita . ou /
-                r"cronograma\s*de\s*submissão.*?(\d{1,2}[/.]\d{1,2}[/.]\d{4})" # Aceita . ou /
-            ],
-            'Contrapartida': [
-                r"contrapartida.*?(\d+%)",
-                r"contra\s*parte.*?(\d+%)",
-                r"recursos.*?proponente.*?(\d+%)"
-            ],
-            'Escala_TRL': [
-                r"nível\s*de\s*maturidade\s*tecnológica.*?TRL\s*(\d+)", # Variação comum
-                r"TRL.*?(\d+\s*[aà-]\s*\d+)", # Agora aceita "a", "à" ou "-"
-                r"Technology\s*Readiness\s*Level.*?(\d+)",
-                r"escala\s*de\s*maturidade.*?(\d+)"
-            ]
-        }
-        
-        extracted = {}
-        for key, pattern_list in patterns.items():
-            last_match = None # Complemento: Variável para guardar a última correspondência
-            for pattern in pattern_list:
-                # Complemento: Usamos re.findall para pegar TODAS as correspondências
-                matches = re.findall(pattern, full_text, re.IGNORECASE | re.DOTALL)
-                if matches:
-                    # Complemento: Guardamos a última correspondência encontrada
-                    last_match = matches[-1]
-            
-            # Complemento: Atribuímos o valor da última correspondência, se houver
-            if last_match:
-                extracted[key] = last_match.strip()
-            else:
-                extracted[key] = "Não encontrado"
-        
-        return extracted
-        
-    except Exception as e:
-        print(f"Erro ao processar PDF: {str(e)}")
-        return {key: "Erro na extração" for key in ['Valor_Global', 'Valor_Projeto', 'Prazo_Submissao', 'Contrapartida', 'Escala_TRL']}
-=======
-from bs4 import BeautifulSoup
+import glob
 
 try:
     from playwright.sync_api import sync_playwright
@@ -113,384 +17,814 @@ try:
     import PyPDF2
 except ImportError:
     PyPDF2 = None
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
-USE_PLAYWRIGHT = False
-PDF_DOWNLOAD_FOLDER = 'pdf_downloads'
+# Configurações
+USE_PLAYWRIGHT = True
+PDF_DOWNLOAD_FOLDER = "pdfs"
 os.makedirs(PDF_DOWNLOAD_FOLDER, exist_ok=True)
 
-def extract_text_from_pdf(pdf_url: str) -> str:
-    """Extrai texto de um PDF a partir de uma URL."""
-    if not PyPDF2:
-        print("PyPDF2 não está instalado.")
-        return ""
+# Configuração da OpenAI
+OPENAI_API_KEY = "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"
+
+def cleanup_old_files():
+    """Remove planilhas antigas do projeto"""
     try:
-        response = requests.get(pdf_url, timeout=15)
-        response.raise_for_status()
-        with BytesIO(response.content) as pdf_file:
-            reader = PyPDF2.PdfReader(pdf_file)
-            text = "\n".join([page.extract_text() or "" for page in reader.pages])
-            return text
+        # Padrões de arquivos para remover
+        patterns = [
+            'FINEP_Chamadas_Publicas_*.csv',
+            'finep_*.csv',
+            'chamadas_*.csv'
+        ]
+        
+        files_removed = 0
+        for pattern in patterns:
+            files = glob.glob(pattern)
+            for file in files:
+                try:
+                    os.remove(file)
+                    files_removed += 1
+                    print(f"   🗑️ Removido: {file}")
+                except Exception as e:
+                    print(f"   ⚠️ Não foi possível remover {file}: {e}")
+        
+        if files_removed > 0:
+            print(f"✅ {files_removed} arquivo(s) antigo(s) removido(s)")
+        else:
+            print("ℹ️ Nenhum arquivo antigo encontrado")
+            
     except Exception as e:
-        print(f"Erro ao extrair texto do PDF {pdf_url}: {e}")
-        return ""
+        print(f"⚠️ Erro na limpeza de arquivos: {e}")
 
-def find_pdf_links(html: str, base_url: str) -> list:
-    """Encontra todos os links para PDFs em uma página HTML."""
-    soup = BeautifulSoup(html, 'html.parser')
-    pdf_links = []
-    for link in soup.find_all('a', href=True):
-        href = link['href'].lower()
-        if href.endswith('.pdf'):
-            full_url = urljoin(base_url, link['href'])
-            pdf_links.append(full_url)
-    return pdf_links
-
-def extract_info_from_pdf_text(text: str) -> dict:
-    """Extrai informações específicas do texto de PDFs."""
-    info = {
-        'Valor_Global_PDF': 'Informação não encontrada',
-        'Prazo_Submissao_PDF': 'Informação não encontrada',
-        'Contato_PDF': 'Informação não encontrada'
-    }
-    valor_match = re.search(r'(valor\s*total|investimento\s*total|recursos\s*disponíveis)[:\s]*R\$\s*([\d.,]+)', text, re.IGNORECASE)
-    if valor_match:
-        info['Valor_Global_PDF'] = f"R$ {valor_match.group(2)}"
-    prazo_match = re.search(r'(prazo\s*para\s*submiss[ãa]o|envio\s*de\s*propostas)[:\s]*(\d{2}/\d{2}/\d{4})', text, re.IGNORECASE)
-    if prazo_match:
-        info['Prazo_Submissao_PDF'] = prazo_match.group(2)
-    contato_match = re.search(r'(contato|dúvidas|informações)[:\s]*([^\n]+@[^\n]+|\(?\d{2,}\)?[\s-]?\d{4,5}[\s-]?\d{4})', text, re.IGNORECASE)
-    if contato_match:
-        info['Contato_PDF'] = contato_match.group(2).strip()
-    return info
-
-def fix_special_characters(text: str) -> str:
-    """Corrige caracteres especiais em textos extraídos de sites brasileiros."""
+def safe_json_parse(text: str, debug=False) -> dict:
+    """Parse JSON com tratamento robusto de erros"""
+    if debug:
+        print(f"🔍 Tentativa de parse JSON: {text[:200]}...")
+    
     try:
-        return text.encode('latin1').decode('utf-8')
-    except Exception:
-        return text
-
-def fetch_with_playwright(url: str):
-    """Obtém o HTML renderizado usando Playwright."""
-    if not sync_playwright:
-        print("Playwright não está instalado.")
-        return None, {}
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        pass
+    
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(url, timeout=15000)
-            page.wait_for_load_state('networkidle')
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
-            html = page.content()
-            screenshot_path = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            page.screenshot(path=screenshot_path, full_page=True)
-            browser.close()
-            return html, {"screenshot_path": screenshot_path}
-    except Exception as e:
-        print(f"Erro ao renderizar a página com Playwright: {e}")
-        return None, {}
-
-def extract_additional_details(html: str, base_url: str) -> dict:
-    """Extrai detalhes adicionais de uma chamada pública."""
-    soup = BeautifulSoup(html, 'html.parser')
-    details = {
-        'Linha_Tematica': 'Não informado',
-        'Publico_Alvo': 'Não informado',
-        'Prazo_Cadastro': 'Não informado',
-        'Prazo_Submissao': 'Não informado',
-        'Prazo_Execucao': 'Não informado',
-        'Valor_Global': 'Não informado',
-        'Valor_Projeto': 'Não informado',
-        'Escala_TRL': 'Não informado',
-        'Contrapartida': 'Não informado',
-        'Observacoes': 'Não informado',
-        'Resumo': 'Não informado',
-        'Modalidade': 'Não informado',
-        'Link_Completo': base_url,
-        'PDFs_Encontrados': 0,
-        'Conteudo_PDFs': 'Nenhum PDF encontrado'
-    }
-    pdf_links = find_pdf_links(html, base_url)
-    details['PDFs_Encontrados'] = len(pdf_links)
-    if pdf_links:
-        pdf_contents = []
-        for pdf_url in pdf_links[:2]:
-            pdf_text = extract_text_from_pdf(pdf_url)
-            if pdf_text:
-                pdf_contents.append(f"PDF: {pdf_url}\nConteúdo:\n{pdf_text[:1000]}...")
-                pdf_info = extract_info_from_pdf_text(pdf_text)
-                details.update(pdf_info)
-        if pdf_contents:
-            details['Conteudo_PDFs'] = "\n\n".join(pdf_contents)
-    field_mapping = {
-        'Linha_Tematica': r'linha\s*tem[áa]tica|área\s*tem[áa]tica',
-        'Publico_Alvo': r'público[\-\s]alvo|destinatários',
-        'Prazo_Cadastro': r'prazo\s*para\s*cadastro|registro',
-        'Prazo_Submissao': r'prazo\s*para\s*submiss[ãa]o|envio',
-        'Prazo_Execucao': r'prazo\s*para\s*execu[çc][ãa]o|implementa[çc][ãa]o',
-        'Valor_Global': r'valor\s*global|investimento\s*total',
-        'Valor_Projeto': r'valor\s*por\s*projeto|financiamento\s*individual',
-        'Escala_TRL': r'escala\s*trl|technology\s*readiness\s*level',
-        'Contrapartida': r'contrapartida|contra\s*parte',
-        'Observacoes': r'observa[çc][õo]es|notas',
-        'Resumo': r'resumo|objetivo\s*geral',
-        'Modalidade': r'modalidade|tipo\s*de\s*chamada'
-    }
-    for field, pattern in field_mapping.items():
-        element = soup.find(string=re.compile(pattern, re.IGNORECASE))
-        if element:
-            next_value = element.find_next(string=True)
-            if next_value and next_value != element:
-                details[field] = fix_special_characters(next_value.strip())
-            else:
-                details[field] = fix_special_characters(element.strip())
-    for field in ['Valor_Global', 'Valor_Projeto']:
-        if field in details:
-            match = re.search(r'R\$\s*([\d.,]+)', details[field])
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group(0)
+            return json.loads(json_text)
+    except json.JSONDecodeError:
+        pass
+    
+    try:
+        result = {}
+        patterns = {
+            'Valor_Global': r'"?Valor_Global"?\s*:\s*"([^"]*)"',
+            'Valor_Projeto': r'"?Valor_Projeto"?\s*:\s*"([^"]*)"',
+            'Prazo_Submissao': r'"?Prazo_Submissao"?\s*:\s*"([^"]*)"',
+            'Contrapartida': r'"?Contrapartida"?\s*:\s*"([^"]*)"',
+            'Escala_TRL': r'"?Escala_TRL"?\s*:\s*"([^"]*)"'
+        }
+        
+        for key, pattern in patterns.items():
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                details[field] = match.group(0)
-    return details
->>>>>>> eef6faa96b27bc865b0eae3b3b4823edde9d22c3
+                result[key] = match.group(1)
+            else:
+                result[key] = "Não encontrado"
+        
+        if any(v != "Não encontrado" for v in result.values()):
+            return result
+            
+    except Exception as e:
+        pass
+    
+    return {
+        'Valor_Global': "Não encontrado",
+        'Valor_Projeto': "Não encontrado",
+        'Prazo_Submissao': "Não encontrado",
+        'Contrapartida': "Não encontrado",
+        'Escala_TRL': "Não encontrado"
+    }
 
-def fetch_call_details(url: str) -> dict:
-    """Obtém detalhes completos incluindo dados de PDF"""
-    details = {
-        'Link_PDF': '',
-        'Resumo_Site': '',
-        'Valor_Global': 'N/D',
-        'Valor_Projeto': 'N/D', 
-        'Prazo_Submissao': 'N/D',
-        'Contrapartida': 'N/D',
-        'Escala_TRL': 'N/D',
-        'Fonte_Dados': 'Site',
-        'Metodo_Analise': 'N/A'  # Novo campo para indicar o método usado
+def split_text_intelligently(text: str, max_length: int = 8000) -> list:
+    """Divide texto em chunks"""
+    if len(text) <= max_length:
+        return [text]
+    
+    sections = text.split('\n\n')
+    chunks = []
+    current_chunk = ""
+    
+    for section in sections:
+        if len(current_chunk + section) < max_length:
+            current_chunk += section + "\n\n"
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = section + "\n\n"
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks if chunks else [text[:max_length]]
+
+def analyze_website_content_with_ai(html_content: str, url: str) -> dict:
+    """Analisa conteúdo do site"""
+    if not OpenAI or not OPENAI_API_KEY:
+        return {}
+    
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        soup = BeautifulSoup(html_content, 'html.parser')
+        for script in soup(["script", "style"]):
+            script.decompose()
+            
+        text_content = soup.get_text(separator=' ', strip=True)
+        text_sample = text_content[:6000] if len(text_content) > 6000 else text_content
+        
+        prompt = f"""
+        Analise esta página da FINEP:
+        
+        {text_sample}
+        
+        Extraia apenas o título da chamada pública. Responda EXATAMENTE assim:
+        {{"titulo": "título encontrado ou Não encontrado"}}
+        """
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Retorne apenas JSON válido."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=100,
+            temperature=0.1
+        )
+        
+        result = safe_json_parse(response.choices[0].message.content.strip())
+        if result and 'titulo' in result:
+            titulo = result['titulo']
+            if titulo != "Não encontrado":
+                print(f"   📋 Título extraído: {titulo}")
+            else:
+                print("   ⚠️ Título não identificado no site")
+            return result
+        
+        return {}
+        
+    except Exception as e:
+        print(f"   ❌ Erro na análise do site: {e}")
+        return {}
+
+def find_pdf_links_simple(html_content: str, base_url: str) -> list:
+    """Busca PDFs"""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        pdf_links = []
+        
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag.get('href')
+            if href and '.pdf' in href.lower():
+                full_url = urljoin(base_url, href)
+                text = a_tag.get_text(strip=True)
+                pdf_links.append({
+                    'url': full_url,
+                    'text': text
+                })
+        
+        if pdf_links:
+            def priority_score(link):
+                text_lower = link['text'].lower()
+                keywords = ['edital', 'chamada', 'regulamento']
+                return sum(1 for k in keywords if k in text_lower)
+            
+            pdf_links.sort(key=priority_score, reverse=True)
+            
+            print(f"   📎 {len(pdf_links)} PDFs encontrados:")
+            for i, link in enumerate(pdf_links[:3], 1):
+                print(f"      {i}. {link['text'][:50]}...")
+            
+            return [link['url'] for link in pdf_links[:2]]  # Só os 2 principais
+        
+        print("   ⚠️ Nenhum PDF encontrado")
+        return []
+        
+    except Exception as e:
+        print(f"   ❌ Erro na busca de PDFs: {e}")
+        return []
+
+def analyze_pdf_with_ai_robust(pdf_text: str) -> dict:
+    """Análise de PDF otimizada"""
+    if not OpenAI or not OPENAI_API_KEY:
+        return {
+            'Valor_Global': "IA não disponível",
+            'Valor_Maximo_Por_Projeto': "IA não disponível",
+            'Data_Limite_Submissao': "IA não disponível",
+            'Percentual_Contrapartida': "IA não disponível",
+            'Nivel_TRL_Exigido': "IA não disponível"
+        }
+    
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        text_chunks = split_text_intelligently(pdf_text, 6000)
+        print(f"   📖 Analisando {len(text_chunks)} seções do PDF...")
+        
+        all_results = []
+        informacoes_encontradas = []  # Para mostrar o progresso
+        
+        for i, chunk in enumerate(text_chunks, 1):
+            print(f"      📄 Seção {i}/{len(text_chunks)}...", end=" ")
+            
+            prompt = f"""
+            Analise este trecho de edital FINEP e encontre as informações específicas:
+            
+            {chunk}
+            
+            Procure por:
+            1. VALOR GLOBAL: Total de recursos da chamada (ex: R$ 10 milhões, R$ 500.000.000,00)
+            2. VALOR MÁXIMO POR PROJETO: Limite por proposta individual
+            3. DATA LIMITE: Prazo final para submissão (formato DD/MM/AAAA ou DD.MM.AAAA)
+            4. CONTRAPARTIDA: Percentual que o proponente deve investir (ex: 8%, 1%)
+            5. TRL: Nível de maturidade tecnológica exigido
+            
+            RESPONDA APENAS neste JSON exato:
+            {{"Valor_Global": "valor ou Não encontrado", "Valor_Maximo_Por_Projeto": "valor ou Não encontrado", "Data_Limite_Submissao": "data ou Não encontrado", "Percentual_Contrapartida": "percentual ou Não encontrado", "Nivel_TRL_Exigido": "TRL ou Não encontrado"}}
+            """
+
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Retorne APENAS JSON válido."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=150,
+                    temperature=0.05
+                )
+                
+                ai_response = response.choices[0].message.content.strip()
+                
+                # Parse personalizado para os novos campos
+                result = {}
+                patterns = {
+                    'Valor_Global': r'"?Valor_Global"?\s*:\s*"([^"]*)"',
+                    'Valor_Maximo_Por_Projeto': r'"?Valor_Maximo_Por_Projeto"?\s*:\s*"([^"]*)"',
+                    'Data_Limite_Submissao': r'"?Data_Limite_Submissao"?\s*:\s*"([^"]*)"',
+                    'Percentual_Contrapartida': r'"?Percentual_Contrapartida"?\s*:\s*"([^"]*)"',
+                    'Nivel_TRL_Exigido': r'"?Nivel_TRL_Exigido"?\s*:\s*"([^"]*)"'
+                }
+                
+                for key, pattern in patterns.items():
+                    match = re.search(pattern, ai_response, re.IGNORECASE)
+                    if match:
+                        result[key] = match.group(1)
+                    else:
+                        result[key] = "Não encontrado"
+                
+                # Mostra informações encontradas nesta seção
+                found_info = []
+                for key, value in result.items():
+                    if value != "Não encontrado":
+                        found_info.append(f"{key}: {value}")
+                
+                if found_info:
+                    all_results.append(result)
+                    print("✅")
+                    for info in found_info:
+                        informacoes_encontradas.append(info)
+                        print(f"         🎯 {info}")
+                else:
+                    print("❌")
+                    
+            except Exception as e:
+                print(f"❌ ({str(e)[:30]})")
+                continue
+        
+        print(f"\n   📊 INFORMAÇÕES EXTRAÍDAS DO PDF:")
+        if informacoes_encontradas:
+            for info in set(informacoes_encontradas):  # Remove duplicatas
+                print(f"      ✅ {info}")
+        else:
+            print("      ⚠️ Nenhuma informação específica extraída")
+        
+        # Consolida resultados
+        if all_results:
+            consolidated = {
+                'Valor_Global': "Não encontrado",
+                'Valor_Maximo_Por_Projeto': "Não encontrado",
+                'Data_Limite_Submissao': "Não encontrado",
+                'Percentual_Contrapartida': "Não encontrado",
+                'Nivel_TRL_Exigido': "Não encontrado"
+            }
+            
+            for key in consolidated.keys():
+                for result in all_results:
+                    if key in result and result[key] != "Não encontrado":
+                        consolidated[key] = result[key]
+                        break
+            
+            print(f"\n   🎯 RESULTADO CONSOLIDADO:")
+            for key, value in consolidated.items():
+                status = "✅" if value != "Não encontrado" else "❌"
+                print(f"      {status} {key}: {value}")
+            
+            return consolidated
+        else:
+            print(f"\n   ⚠️ Nenhum resultado consolidado obtido")
+            return {
+                'Valor_Global': "Não extraído",
+                'Valor_Maximo_Por_Projeto': "Não extraído",
+                'Data_Limite_Submissao': "Não extraído",
+                'Percentual_Contrapartida': "Não extraído",
+                'Nivel_TRL_Exigido': "Não extraído"
+            }
+            
+    except Exception as e:
+        print(f"\n   ❌ Erro geral na análise: {e}")
+        return {
+            'Valor_Global': f"Erro: {str(e)[:50]}",
+            'Valor_Maximo_Por_Projeto': "Erro na análise",
+            'Data_Limite_Submissao': "Erro na análise",
+            'Percentual_Contrapartida': "Erro na análise", 
+            'Nivel_TRL_Exigido': "Erro na análise"
+        }
+
+def extract_pdf_text(pdf_url: str) -> str:
+    """Extrai texto do PDF"""
+    try:
+        print(f"   📥 Baixando PDF...")
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(pdf_url, timeout=60, headers=headers)
+        response.raise_for_status()
+        
+        pdf_file = BytesIO(response.content)
+        
+        if not PyPDF2:
+            print("   ❌ PyPDF2 não disponível")
+            return ""
+        
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        num_pages = len(pdf_reader.pages)
+        
+        print(f"   📖 Extraindo texto de {num_pages} páginas...")
+        
+        full_text = ""
+        successful_pages = 0
+        
+        for page_num, page in enumerate(pdf_reader.pages, 1):
+            try:
+                text = page.extract_text()
+                if text and text.strip():
+                    text = re.sub(r'\s+', ' ', text.strip())
+                    full_text += f"\n{text}"
+                    successful_pages += 1
+                    
+                    if page_num % 10 == 0:
+                        print(f"      📄 {page_num} páginas processadas...")
+            except:
+                continue
+        
+        print(f"   ✅ Texto extraído: {successful_pages}/{num_pages} páginas ({len(full_text):,} caracteres)")
+        return full_text
+        
+    except Exception as e:
+        print(f"   ❌ Erro na extração: {e}")
+        return ""
+
+def process_call(url: str, titulo_inicial: str) -> dict:
+    """Processa uma chamada específica"""
+    print(f"\n🔍 PROCESSANDO: {titulo_inicial}")
+    print(f"🔗 URL: {url}")
+    print("-" * 60)
+    
+    result = {
+        'ID': titulo_inicial,
+        'Nome_da_Chamada': 'Não identificado',
+        'URL_Original': url,
+        'Valor_Global_Disponivel': 'Não encontrado',
+        'Valor_Maximo_Por_Projeto': 'Não encontrado',
+        'Data_Limite_Submissao': 'Não encontrado',
+        'Percentual_Contrapartida': 'Não encontrado',
+        'Nivel_TRL_Exigido': 'Não encontrado',
+        'URL_PDF_Principal': 'Não encontrado',
+        'Status_Processamento': 'Iniciando',
+        'Data_Coleta': datetime.now().strftime('%d/%m/%Y %H:%M')
     }
     
     try:
+        # Passo 1: Acessa página
+        print("🌐 Acessando página web...")
+        html_content = ""
         if USE_PLAYWRIGHT and sync_playwright:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page()
-                page.goto(url, timeout=25000)
-                
-                # Tenta encontrar resumo
-                resumo_selectors = ['.resumo', '.abstract', '.content-text', 'p:first-of-type']
-                for selector in resumo_selectors:
-                    if page.query_selector(selector):
-                        details['Resumo_Site'] = page.inner_text(selector)[:300] + "..."
-                        break
-                
-                # Busca por PDFs
-                pdf_selectors = [
-                    'a[href*=".pdf"]',
-                    'a:has-text("edital")',
-                    'a:has-text("pdf")',
-                    'a:has-text("download")'
-                ]
-                
-                for selector in pdf_selectors:
-                    pdf_elements = page.query_selector_all(selector)
-                    for element in pdf_elements:
-                        href = element.get_attribute('href')
-                        if href and '.pdf' in href.lower():
-                            details['Link_PDF'] = urljoin(url, href)
-                            break
-                    if details['Link_PDF']:
-                        break
-                
+                page.goto(url, timeout=45000, wait_until='networkidle')
+                html_content = page.content()
                 browser.close()
+                print("   ✅ Página carregada com sucesso")
         
-        # Extrai dados do PDF se encontrado
-        if details['Link_PDF']:
-            pdf_data = extract_finep_pdf_data(details['Link_PDF'])
-            details.update(pdf_data)
-            details['Fonte_Dados'] = 'PDF'
-            details['Metodo_Analise'] = 'IA' if USE_AI_ANALYSIS else 'Regex'
+        if not html_content:
+            result['Status_Processamento'] = 'Erro - Página inacessível'
+            print("   ❌ Falha no carregamento da página")
+            return result
         
-        return details
+        # Passo 2: Extrai título
+        print("\n🤖 Analisando conteúdo do site...")
+        site_analysis = analyze_website_content_with_ai(html_content, url)
+        if site_analysis and site_analysis.get('titulo') != 'Não encontrado':
+            result['Nome_da_Chamada'] = site_analysis['titulo']
+        
+        # Passo 3: Busca PDFs
+        print("\n🔍 Buscando documentos PDF...")
+        pdf_urls = find_pdf_links_simple(html_content, url)
+        if not pdf_urls:
+            result['Status_Processamento'] = 'Concluído - Sem PDFs relevantes'
+            print("   ⚠️ Nenhum PDF relevante encontrado")
+            return result
+        
+        # Passo 4: Analisa PDF principal
+        main_pdf = pdf_urls[0]
+        result['URL_PDF_Principal'] = main_pdf
+        
+        print(f"\n📋 Analisando PDF principal:")
+        print(f"   🔗 {main_pdf.split('/')[-1]}")
+        
+        pdf_text = extract_pdf_text(main_pdf)
+        if not pdf_text:
+            result['Status_Processamento'] = 'Erro - PDF não legível'
+            print("   ❌ Não foi possível ler o PDF")
+            return result
+        
+        # Passo 5: Análise com IA
+        print(f"\n🤖 ANÁLISE INTELIGENTE DO PDF:")
+        pdf_data = analyze_pdf_with_ai_robust(pdf_text)
+        
+        result['Valor_Global_Disponivel'] = pdf_data['Valor_Global']
+        result['Valor_Maximo_Por_Projeto'] = pdf_data['Valor_Maximo_Por_Projeto']
+        result['Data_Limite_Submissao'] = pdf_data['Data_Limite_Submissao']
+        result['Percentual_Contrapartida'] = pdf_data['Percentual_Contrapartida']
+        result['Nivel_TRL_Exigido'] = pdf_data['Nivel_TRL_Exigido']
+        
+        result['Status_Processamento'] = 'Concluído com sucesso'
+        
+        print(f"\n✅ PROCESSAMENTO CONCLUÍDO")
+        
+        return result
         
     except Exception as e:
-        print(f"❌ Erro ao processar {url}: {str(e)}")
-        return details
+        result['Status_Processamento'] = f'Erro - {str(e)[:100]}'
+        print(f"\n❌ Erro no processamento: {e}")
+        return result
 
-<<<<<<< HEAD
-# Complemento: Nova função para classificar o TRL com base na descrição fornecida.
-def classify_trl(trl_string: str) -> str:
-    """Classifica o nível de TRL com base em uma string extraída."""
-    trl_map = {
-        '1': "TRL 1 - Princípios Básicos Observados",
-        '2': "TRL 2 - Conceito Tecnológico Formulado",
-        '3': "TRL 3 - Prova de Conceito Experimental",
-        '4': "TRL 4 - Validação em Ambiente de Laboratório",
-        '5': "TRL 5 - Validação em Ambiente Relevante",
-        '6': "TRL 6 - Demonstração em Ambiente Relevante",
-        '7': "TRL 7 - Demonstração em Ambiente Operacional",
-        '8': "TRL 8 - Sistema Completo Qualificado",
-        '9': "TRL 9 - Sistema Comprovado em Operação Real"
-    }
-
-    if not trl_string or "Não encontrado" in trl_string:
-        return "Classificação não aplicável"
-
-    match = re.search(r'\d+', trl_string)
-    if match:
-        trl_level = match.group(0)
-        return trl_map.get(trl_level, "Nível de TRL não classificado")
+def clean_csv_data(value: str) -> str:
+    """Limpa dados para CSV removendo caracteres problemáticos"""
+    if not isinstance(value, str):
+        return str(value)
     
-    return "Classificação não aplicável"
-
-def main():
-    print("🚀 Iniciando coleta avançada com análise de IA...")
-    print(f"🤖 Análise com IA: {'Ativada' if USE_AI_ANALYSIS and openai else 'Desativada (usando regex)'}")
+    # Remove quebras de linha e tabs
+    value = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
     
-    # Lista de chamadas para teste
-    public_calls = [
+    # Remove vírgulas extras que podem quebrar o CSV
+    value = re.sub(r',+', ',', value)
+    
+    # Remove espaços extras
+    value = re.sub(r'\s+', ' ', value).strip()
+    
+    # Limita o tamanho para evitar células muito grandes
+    if len(value) > 500:
+        value = value[:497] + "..."
+    
+    return value
+
+def save_to_csv(resultados: list, filename: str) -> bool:
+    """Salva resultados em CSV com formatação adequada"""
+    try:
+        # Ordem específica das colunas
+        fieldnames = [
+            'ID',
+            'Nome_da_Chamada',
+            'Valor_Global_Disponivel',
+            'Valor_Maximo_Por_Projeto', 
+            'Data_Limite_Submissao',
+            'Percentual_Contrapartida',
+            'Nivel_TRL_Exigido',
+            'URL_PDF_Principal',
+            'URL_Original',
+            'Status_Processamento',
+            'Data_Coleta'
+        ]
+        
+        # Limpa os dados antes de salvar
+        cleaned_resultados = []
+        for resultado in resultados:
+            cleaned_resultado = {}
+            for field in fieldnames:
+                raw_value = resultado.get(field, 'N/A')
+                cleaned_resultado[field] = clean_csv_data(str(raw_value))
+            cleaned_resultados.append(cleaned_resultado)
+        
+        # Salva com configurações específicas para CSV
+        with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(
+                f, 
+                fieldnames=fieldnames,
+                delimiter=',',           # Vírgula como separador
+                quotechar='"',          # Aspas duplas para campos com vírgulas
+                quoting=csv.QUOTE_ALL   # Força aspas em todos os campos
+            )
+            writer.writeheader()
+            writer.writerows(cleaned_resultados)
+        
+        print(f"💾 PLANILHA SALVA: {filename}")
+        print(f"📊 {len(cleaned_resultados)} registros salvos com {len(fieldnames)} colunas")
+        
+        # Verifica se o arquivo foi criado corretamente
+        if os.path.exists(filename):
+            file_size = os.path.getsize(filename)
+            print(f"📁 Tamanho do arquivo: {file_size:,} bytes")
+            return True
+        else:
+            print("❌ Erro: arquivo não foi criado")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Erro ao salvar CSV: {e}")
+        return False
+
+def create_excel_version(resultados: list, csv_filename: str) -> None:
+    """Cria versão Excel opcional (se xlsxwriter disponível)"""
+    try:
+        import xlsxwriter
+        
+        excel_filename = csv_filename.replace('.csv', '.xlsx')
+        
+        workbook = xlsxwriter.Workbook(excel_filename)
+        worksheet = workbook.add_worksheet('Chamadas FINEP')
+        
+        # Formatos
+        header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#4F81BD',
+            'font_color': 'white',
+            'border': 1
+        })
+        
+        cell_format = workbook.add_format({
+            'border': 1,
+            'text_wrap': True,
+            'valign': 'top'
+        })
+        
+        # Headers
+        headers = [
+            'ID', 'Nome da Chamada', 'Valor Global', 'Valor Máximo/Projeto',
+            'Data Limite', 'Contrapartida (%)', 'Nível TRL', 'PDF Principal',
+            'URL Original', 'Status', 'Data Coleta'
+        ]
+        
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header, header_format)
+            worksheet.set_column(col, col, 20)  # Largura da coluna
+        
+        # Dados
+        for row, resultado in enumerate(resultados, 1):
+            values = [
+                resultado.get('ID', ''),
+                resultado.get('Nome_da_Chamada', ''),
+                resultado.get('Valor_Global_Disponivel', ''),
+                resultado.get('Valor_Maximo_Por_Projeto', ''),
+                resultado.get('Data_Limite_Submissao', ''),
+                resultado.get('Percentual_Contrapartida', ''),
+                resultado.get('Nivel_TRL_Exigido', ''),
+                resultado.get('URL_PDF_Principal', ''),
+                resultado.get('URL_Original', ''),
+                resultado.get('Status_Processamento', ''),
+                resultado.get('Data_Coleta', '')
+            ]
+            
+            for col, value in enumerate(values):
+                clean_value = clean_csv_data(str(value))
+                worksheet.write(row, col, clean_value, cell_format)
+        
+        workbook.close()
+        print(f"📊 Versão Excel criada: {excel_filename}")
+        
+    except ImportError:
+        print("ℹ️ xlsxwriter não disponível - apenas CSV gerado")
+    except Exception as e:
+        print(f"⚠️ Erro ao criar Excel: {e}")
+
+def get_user_links() -> list:
+    """Permite ao usuário registrar links para análise"""
+    print("\n📋 CONFIGURAÇÃO DE LINKS PARA ANÁLISE")
+    print("="*50)
+    
+    # Links padrão já configurados
+    links_default = [
         {
-            'Titulo': 'Chamada Nordeste',
-            'Link': 'https://www.finep.gov.br/chamadas-publicas/chamadapublica/759',
-            'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'Metodo': 'Playwright'
+            'titulo': 'Chamada Nordeste',
+            'url': 'https://www.finep.gov.br/chamadas-publicas/chamadapublica/759'
         },
         {
-            'Titulo': 'FIP Transição Energética e Descarbonização', 
-            'Link': 'https://www.finep.gov.br/chamadas-publicas/chamadapublica/760',
-            'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'Metodo': 'Playwright'
+            'titulo': 'FIP Transição Energética', 
+            'url': 'https://www.finep.gov.br/chamadas-publicas/chamadapublica/760'
         }
     ]
     
-    print(f"📋 {len(public_calls)} chamadas encontradas")
+    print(f"🔗 Links padrão já configurados: {len(links_default)}")
+    for i, link in enumerate(links_default, 1):
+        print(f"   {i}. {link['titulo']}")
+        print(f"      URL: {link['url']}")
     
-    # Coleta detalhes e PDFs
-    for i, call in enumerate(public_calls, 1):
-        print(f"\n🔍 Processando {i}/{len(public_calls)}: {call['Titulo']}")
-        details = fetch_call_details(call['Link'])
-        call.update(details)
-        call['TRL_Descricao'] = classify_trl(call.get('Escala_TRL', 'Não encontrado'))
+    print("\n" + "="*50)
+    print("OPÇÕES:")
+    print("1. Usar apenas os links padrão")
+    print("2. Adicionar novos links aos padrão")
+    print("3. Usar apenas novos links (ignorar padrão)")
     
-    # Exibe resultados
-    print("\n" + "="*80)
-    print("📊 RESULTADOS DA COLETA")
-    print("="*80)
-    
-    for i, call in enumerate(public_calls, 1):
-        print(f"\n{i}. {call['Titulo']}")
-        print(f"   🔗 Link: {call['Link']}")
-        print(f"   📄 PDF: {call.get('Link_PDF', 'Nenhum PDF encontrado')}")
-        print(f"   💰 Valor Global: {call['Valor_Global']}")
-        print(f"   💰 Valor por Projeto: {call['Valor_Projeto']}")
-        print(f"   ⏰ Prazo Submissão: {call['Prazo_Submissao']}")
-        print(f"   🔄 Contrapartida: {call['Contrapartida']}")
-        print(f"   📊 TRL: {call['Escala_TRL']} ({call['TRL_Descricao']})")
-        print(f"   🤖 Método: {call['Metodo_Analise']}")
-        print(f"   📝 Fonte: {call['Fonte_Dados']}")
-        print("-" * 60)
-    
-    # Salva CSV
-    try:
-        all_keys = set().union(*(d.keys() for d in public_calls))
-        with open('chamadas_detalhadas_ia.csv', 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=sorted(list(all_keys)))
-            writer.writeheader()
-            writer.writerows(public_calls)
-        print("\n✅ Dados salvos em 'chamadas_detalhadas_ia.csv'")
-    except Exception as e:
-        print(f"\n❌ Erro ao salvar CSV: {str(e)}")
-
-if __name__ == '__main__':
-    # Verifica e instala dependências se necessário
-    try:
-        import PyPDF2
-    except ImportError:
-        print("Instalando PyPDF2...")
-        import subprocess
-        subprocess.run(['pip', 'install', 'PyPDF2'])
-    
-=======
-def fetch_public_calls(url: str) -> list:
-    """Busca e retorna uma lista de chamadas públicas disponíveis na página fornecida."""
-    if USE_PLAYWRIGHT:
-        html, _ = fetch_with_playwright(url)
-    else:
-        html = None
-    if html:
-        soup = BeautifulSoup(html, 'html.parser')
-        method = 'Playwright'
-    else:
+    while True:
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }
-            response = requests.get(url, headers=headers, timeout=15)
-            response.encoding = 'iso-8859-1'
-            soup = BeautifulSoup(response.text, 'html.parser')
-            method = 'Requests'
-        except Exception as e:
-            print(f"Erro ao obter dados com requests: {e}")
-            return []
-    containers = soup.select('.item-chamada, .chamada-item, article, div.card') or \
-                 soup.find_all(['div', 'section'], class_=True)
-    calls = []
-    seen_links = set()
-    for container in containers:
-        title_tag = container.find(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-        if not title_tag:
-            continue
-        title = fix_special_characters(title_tag.get_text(strip=True))
-        link_tag = container.find('a', href=True)
-        link = urljoin(url, link_tag['href']) if link_tag else ''
-        if (link and link not in seen_links and
-            not link.endswith(('acessibilidade', 'chamadas-publicas')) and
-            '/chamadapublica/' in link):
-            call_data = {
-                'Titulo': title,
-                'Link': link,
-                'Data_Coleta': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'Metodo': method
-            }
-            details = fetch_call_details(link)
-            call_data.update(details)
-            calls.append(call_data)
-            seen_links.add(link)
-            if len(calls) >= 3:
+            opcao = input("\n👆 Escolha uma opção (1-3): ").strip()
+            if opcao in ['1', '2', '3']:
                 break
-    return calls
+            else:
+                print("❌ Opção inválida! Digite 1, 2 ou 3.")
+        except KeyboardInterrupt:
+            print("\n❌ Operação cancelada pelo usuário")
+            return links_default
+    
+    if opcao == '1':
+        print("✅ Usando links padrão")
+        return links_default
+    
+    # Para opções 2 e 3, coletar novos links
+    novos_links = []
+    
+    print(f"\n📝 ADICIONANDO NOVOS LINKS")
+    print("💡 Dica: Digite 'fim' quando terminar de adicionar links")
+    print("-" * 50)
+    
+    contador = 1
+    while True:
+        print(f"\n🔗 LINK {contador}:")
+        
+        try:
+            # Coleta título
+            titulo = input("   📋 Título/Nome da chamada: ").strip()
+            if titulo.lower() == 'fim':
+                break
+            
+            if not titulo:
+                print("   ⚠️ Título não pode estar vazio!")
+                continue
+            
+            # Coleta URL
+            url = input("   🌐 URL completa: ").strip()
+            if url.lower() == 'fim':
+                break
+                
+            if not url:
+                print("   ⚠️ URL não pode estar vazia!")
+                continue
+                
+            # Validação básica da URL
+            if not url.startswith(('http://', 'https://')):
+                print("   ⚠️ URL deve começar com http:// ou https://")
+                continue
+            
+            # Adiciona o novo link
+            novos_links.append({
+                'titulo': titulo,
+                'url': url
+            })
+            
+            print(f"   ✅ Link {contador} adicionado: {titulo}")
+            contador += 1
+            
+            # Pergunta se quer continuar
+            if contador > 10:  # Limite de segurança
+                continuar = input("\n   ❓ Adicionar mais links? (s/n): ").lower()
+                if continuar not in ['s', 'sim', 'y', 'yes']:
+                    break
+                    
+        except KeyboardInterrupt:
+            print("\n❌ Adição de links cancelada")
+            break
+    
+    # Combina links conforme a opção escolhida
+    if opcao == '2':
+        # Adicionar aos padrão
+        links_finais = links_default + novos_links
+        print(f"\n✅ Total de links: {len(links_finais)} ({len(links_default)} padrão + {len(novos_links)} novos)")
+    else:
+        # Usar apenas novos (opção 3)
+        links_finais = novos_links
+        print(f"\n✅ Total de links: {len(links_finais)} (apenas novos links)")
+    
+    # Exibe resumo final
+    if links_finais:
+        print(f"\n📋 LINKS CONFIGURADOS PARA ANÁLISE:")
+        print("-" * 50)
+        for i, link in enumerate(links_finais, 1):
+            print(f"{i}. {link['titulo']}")
+            print(f"   🔗 {link['url']}")
+        
+        confirmar = input(f"\n✅ Confirma análise de {len(links_finais)} link(s)? (s/n): ").lower()
+        if confirmar in ['s', 'sim', 'y', 'yes']:
+            return links_finais
+        else:
+            print("❌ Análise cancelada pelo usuário")
+            return []
+    else:
+        print("⚠️ Nenhum link configurado")
+        return links_default
 
 def main():
-    FINE_PUBLIC_CALLS_URL = 'https://www.finep.gov.br/chamadas-publicas'
-    print("Iniciando coleta de Chamadas Públicas da FINEP...")
-    os.makedirs('screenshots', exist_ok=True)
-    public_calls = fetch_public_calls(FINE_PUBLIC_CALLS_URL)
-    if public_calls:
-        print("Chamadas Públicas Disponíveis:")
-        print(f"Total de Chamadas Encontradas: {len(public_calls)}\n")
-        print(f"Campos coletados por chamada: {len(public_calls[0].keys())}\n")
-        for i, call in enumerate(public_calls, 1):
-            print(f"{i}. {call['Titulo']}")
-            print(f" Link: {call['Link']} (Método: {call['Metodo']})")
-            print(f"PDFs encontrados: {call['PDFs_Encontrados']}")
-            print(f"   Linha Temática: {call['Linha_Tematica']}")
-            print(f"   Público-Alvo: {call['Publico_Alvo']}")
-            print(f"   Prazo Submissão (site): {call['Prazo_Submissao']}")
-            print(f"   Prazo Submissão (PDF): {call.get('Prazo_Submissao_PDF', 'N/A')}")
-            print(f"   Valor Global (site): {call['Valor_Global']}")
-            print(f"   Valor Global (PDF): {call.get('Valor_Global_PDF', 'N/A')}")
-            print(f"   Modalidade: {call['Modalidade']}")
-            print(f"   Contato (PDF): {call.get('Contato_PDF', 'N/A')}")
-        try:
-            with open('chamadas_publicas.csv', 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.DictWriter(f, fieldnames=public_calls[0].keys())
-                writer.writeheader()
-                writer.writerows(public_calls)
-            print("\n✅ Dados salvos em 'chamadas_publicas.csv'")
-        except Exception as e:
-            print(f"\n⚠️ Erro ao salvar CSV: {str(e)}")
+    print("🚀 FINEP - SISTEMA DE ANÁLISE DE CHAMADAS PÚBLICAS")
+    print("🤖 Versão com Configuração Interativa de Links")
+    print("="*70)
+    
+    # Verificações
+    if not OpenAI or not OPENAI_API_KEY:
+        print("❌ ERRO: OpenAI não configurada")
+        return
+    
+    if not sync_playwright:
+        print("❌ ERRO: Playwright não disponível") 
+        return
+        
+    print("✅ Sistema operacional")
+    
+    # Limpeza de arquivos antigos
+    print("\n🧹 Limpando arquivos antigos...")
+    cleanup_old_files()
+    
+    # Coleta links do usuário
+    chamadas = get_user_links()
+    
+    if not chamadas:
+        print("❌ Nenhum link para analisar. Encerrando...")
+        return
+    
+    resultados = []
+    
+    # Processa cada chamada
+    for i, chamada in enumerate(chamadas, 1):
+        print(f"\n{'='*80}")
+        print(f"📋 ANÁLISE {i}/{len(chamadas)}")
+        print('='*80)
+        
+        resultado = process_call(chamada['url'], chamada['titulo'])
+        resultados.append(resultado)
+        
+        print(f"\n🏁 Status Final: {resultado['Status_Processamento']}")
+        print('='*80)
+    
+    # Exibe resumo consolidado
+    print("\n" + "="*80)
+    print("📊 RESUMO GERAL DOS RESULTADOS")
+    print("="*80)
+    
+    for i, resultado in enumerate(resultados, 1):
+        print(f"\n🔸 CHAMADA {i}: {resultado['Nome_da_Chamada']}")
+        print(f"   💰 Valor Global: {resultado['Valor_Global_Disponivel']}")
+        print(f"   💰 Valor/Projeto: {resultado['Valor_Maximo_Por_Projeto']}")
+        print(f"   📅 Prazo: {resultado['Data_Limite_Submissao']}")
+        print(f"   🔄 Contrapartida: {resultado['Percentual_Contrapartida']}")
+        print(f"   📊 TRL: {resultado['Nivel_TRL_Exigido']}")
+        print(f"   📄 PDF: {resultado['URL_PDF_Principal'].split('/')[-1] if resultado['URL_PDF_Principal'] != 'Não encontrado' else 'N/A'}")
+        print(f"   ✅ Status: {resultado['Status_Processamento']}")
+    
+    # Salva arquivos com método corrigido
+    print(f"\n💾 SALVANDO RESULTADOS...")
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    csv_filename = f"FINEP_Chamadas_Publicas_{timestamp}.csv"
+    
+    # Salva CSV corrigido
+    if save_to_csv(resultados, csv_filename):
+        print("\n📋 ESTRUTURA DA PLANILHA:")
+        print("   • Cada informação em coluna separada")
+        print("   • Dados limpos e formatados")
+        print("   • Encoding UTF-8 com BOM para Excel")
+        print("   • Todos os campos entre aspas para proteção")
+        
+        # Tenta criar versão Excel também
+        create_excel_version(resultados, csv_filename)
+        
+        print("\n🎉 ANÁLISE CONCLUÍDA COM SUCESSO!")
+        print("📁 Pasta de projeto mantida limpa")
+        print("📊 Planilhas prontas para uso no Excel/LibreOffice")
     else:
-        print("Nenhuma chamada pública encontrada.")
+        print("\n❌ Erro ao salvar - verifique permissões de arquivo")
 
 if __name__ == '__main__':
->>>>>>> eef6faa96b27bc865b0eae3b3b4823edde9d22c3
     main()
