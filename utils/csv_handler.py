@@ -8,22 +8,25 @@ class CSVHandler:
     def save_to_csv(resultados: List[Dict], filename: str) -> bool:
         """Salva resultados em CSV com formatação adequada"""
         try:
-            fieldnames = [
-                'ID',
-                'Nome_da_Chamada',
-                'Valor_Global_Disponivel',
-                'Valor_Maximo_Por_Projeto', 
-                'Data_Limite_Submissao',
-                'Percentual_Contrapartida',
-                'Nivel_TRL_Exigido',
-                'URL_PDF_Principal',
-                'URL_Original',
-                'Status_Processamento',
-                'Data_Coleta'
-            ]
+            # Mapeamento correto dos campos do schema para CSV
+            field_mapping = {
+                'id': 'ID',
+                'nome_chamada': 'Nome_da_Chamada',
+                'valor_global': 'Valor_Global_Disponivel',
+                'valor_maximo_projeto': 'Valor_Maximo_Por_Projeto',
+                'data_limite_submissao': 'Data_Limite_Submissao',
+                'percentual_contrapartida': 'Percentual_Contrapartida',
+                'nivel_trl_exigido': 'Nivel_TRL_Exigido',
+                'url_pdf_principal': 'URL_PDF_Principal',
+                'url_original': 'URL_Original',
+                'status_processamento': 'Status_Processamento',
+                'data_coleta': 'Data_Coleta'
+            }
             
-            # Limpa os dados antes de salvar
-            cleaned_resultados = CSVHandler._clean_results(resultados, fieldnames)
+            fieldnames = list(field_mapping.values())
+            
+            # Converte os resultados para o formato CSV
+            csv_resultados = CSVHandler._convert_to_csv_format(resultados, field_mapping)
             
             # Salva com configurações específicas para CSV
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
@@ -35,10 +38,10 @@ class CSVHandler:
                     quoting=csv.QUOTE_ALL
                 )
                 writer.writeheader()
-                writer.writerows(cleaned_resultados)
+                writer.writerows(csv_resultados)
             
             print(f"💾 PLANILHA SALVA: {filename}")
-            print(f"📊 {len(cleaned_resultados)} registros salvos com {len(fieldnames)} colunas")
+            print(f"📊 {len(csv_resultados)} registros salvos com {len(fieldnames)} colunas")
             
             # Verifica se o arquivo foi criado corretamente
             if os.path.exists(filename):
@@ -54,16 +57,23 @@ class CSVHandler:
             return False
     
     @staticmethod
-    def _clean_results(resultados: List[Dict], fieldnames: List[str]) -> List[Dict]:
-        """Limpa os resultados para CSV"""
-        cleaned_resultados = []
+    def _convert_to_csv_format(resultados: List[Dict], field_mapping: Dict[str, str]) -> List[Dict]:
+        """Converte resultados do schema para formato CSV"""
+        csv_resultados = []
+        
         for resultado in resultados:
-            cleaned_resultado = {}
-            for field in fieldnames:
-                raw_value = resultado.get(field, 'N/A')
-                cleaned_resultado[field] = clean_csv_data(str(raw_value))
-            cleaned_resultados.append(cleaned_resultado)
-        return cleaned_resultados
+            csv_resultado = {}
+            
+            # Mapeia cada campo do schema para o nome correto no CSV
+            for schema_field, csv_field in field_mapping.items():
+                # Pega o valor do resultado usando a chave do schema
+                raw_value = resultado.get(schema_field, 'Não encontrado')
+                # Limpa e coloca no formato CSV
+                csv_resultado[csv_field] = clean_csv_data(str(raw_value))
+            
+            csv_resultados.append(csv_resultado)
+        
+        return csv_resultados
     
     @staticmethod
     def create_excel_version(resultados: List[Dict], csv_filename: str) -> None:
@@ -101,23 +111,24 @@ class CSVHandler:
                 worksheet.write(0, col, header, header_format)
                 worksheet.set_column(col, col, 20)
             
-            # Dados
+            # Dados - usar mapeamento correto
+            field_mapping = {
+                'id': 0,
+                'nome_chamada': 1,
+                'valor_global': 2,
+                'valor_maximo_projeto': 3,
+                'data_limite_submissao': 4,
+                'percentual_contrapartida': 5,
+                'nivel_trl_exigido': 6,
+                'url_pdf_principal': 7,
+                'url_original': 8,
+                'status_processamento': 9,
+                'data_coleta': 10
+            }
+            
             for row, resultado in enumerate(resultados, 1):
-                values = [
-                    resultado.get('ID', ''),
-                    resultado.get('Nome_da_Chamada', ''),
-                    resultado.get('Valor_Global_Disponivel', ''),
-                    resultado.get('Valor_Maximo_Por_Projeto', ''),
-                    resultado.get('Data_Limite_Submissao', ''),
-                    resultado.get('Percentual_Contrapartida', ''),
-                    resultado.get('Nivel_TRL_Exigido', ''),
-                    resultado.get('URL_PDF_Principal', ''),
-                    resultado.get('URL_Original', ''),
-                    resultado.get('Status_Processamento', ''),
-                    resultado.get('Data_Coleta', '')
-                ]
-                
-                for col, value in enumerate(values):
+                for schema_field, col in field_mapping.items():
+                    value = resultado.get(schema_field, 'Não encontrado')
                     clean_value = clean_csv_data(str(value))
                     worksheet.write(row, col, clean_value, cell_format)
             

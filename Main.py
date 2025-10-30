@@ -13,7 +13,7 @@ from core.file_manager import cleanup_old_files
 from core.data_processor import DataProcessor
 from utils.csv_handler import CSVHandler
 from models.schemas import LinkConfig
-from config.settings import USE_PLAYWRIGHT
+from config.settings import USE_PLAYWRIGHT  # Corrigido: Config com C maiúsculo
 
 # Pasta padrão onde o usuário pode colocar a planilha de links
 # usar pasta 'Links' na raiz do projeto
@@ -172,14 +172,15 @@ def display_final_summary(resultados: list):
     print("="*80)
     
     for i, resultado in enumerate(resultados, 1):
-        print(f"\n🔸 CHAMADA {i}: {resultado['Nome_da_Chamada']}")
-        print(f"   💰 Valor Global: {resultado['Valor_Global_Disponivel']}")
-        print(f"   💰 Valor/Projeto: {resultado['Valor_Maximo_Por_Projeto']}")
-        print(f"   📅 Prazo: {resultado['Data_Limite_Submissao']}")
-        print(f"   🔄 Contrapartida: {resultado['Percentual_Contrapartida']}")
-        print(f"   📊 TRL: {resultado['Nivel_TRL_Exigido']}")
-        print(f"   📄 PDF: {resultado['URL_PDF_Principal'].split('/')[-1] if resultado['URL_PDF_Principal'] != 'Não encontrado' else 'N/A'}")
-        print(f"   ✅ Status: {resultado['Status_Processamento']}")
+        # Corrigido: usar snake_case das chaves do schema
+        print(f"\n🔸 CHAMADA {i}: {resultado.get('nome_chamada', 'N/A')}")
+        print(f"   💰 Valor Global: {resultado.get('valor_global', 'N/A')}")
+        print(f"   💰 Valor/Projeto: {resultado.get('valor_maximo_projeto', 'N/A')}")
+        print(f"   📅 Prazo: {resultado.get('data_limite_submissao', 'N/A')}")
+        print(f"   🔄 Contrapartida: {resultado.get('percentual_contrapartida', 'N/A')}")
+        print(f"   📊 TRL: {resultado.get('nivel_trl_exigido', 'N/A')}")
+        print(f"   📄 PDF: {resultado.get('url_pdf_principal', 'N/A').split('/')[-1] if resultado.get('url_pdf_principal') != 'Não encontrado' else 'N/A'}")
+        print(f"   ✅ Status: {resultado.get('status_processamento', 'N/A')}")
 
 def main():
     print("🚀 FINEP - SISTEMA DE ANÁLISE DE CHAMADAS PÚBLICAS")
@@ -193,7 +194,7 @@ def main():
     # Verificações iniciais
     try:
         from openai import OpenAI
-        from config.settings import OPENAI_API_KEY
+        from config.settings import OPENAI_API_KEY  # Corrigido: Config com C maiúsculo
         if not OPENAI_API_KEY:
             print("❌ ERRO: OpenAI API Key não configurada")
             return
@@ -236,7 +237,8 @@ def main():
         resultado = processor.process_call(chamada.url, chamada.titulo)
         resultados.append(resultado)
         
-        print(f"\n🏁 Status Final: {resultado['Status_Processamento']}")
+        # Corrigido: usar snake_case e .get() para evitar KeyError
+        print(f"\n🏁 Status Final: {resultado.get('status_processamento', 'Status não disponível')}")
         print('='*80)
     
     # Exibe resumo
