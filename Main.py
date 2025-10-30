@@ -20,7 +20,7 @@ from config.settings import USE_PLAYWRIGHT  # Corrigido: Config com C maiúsculo
 # LINKS_FOLDER = os.path.join(os.path.dirname(__file__), 'Links')
 
 # OU caminho absoluto no seu Windows (exemplo)
-LINKS_FOLDER = r"C:\Users\fmcorreia.SISTEMAFIRJAN\Desktop\web-scraping-finep\Links\meu_arquivo.xlsx"
+LINKS_FOLDER = r"C:\Users\fmcorreia.SISTEMAFIRJAN\Desktop\web-scraping-finep\Links\Sites_de_fomento.xlsx"
 os.makedirs(LINKS_FOLDER, exist_ok=True)
 
 
