@@ -54,17 +54,26 @@ class PDFAnalyzer:
     def _create_analysis_prompt(self, chunk: str) -> str:
         """Cria prompt para análise do PDF"""
         return f"""
-        Analise este trecho de edital FINEP e encontre as informações específicas:
-        
+        MISSÃO ESPECIALIZADA: Seu objetivo é identificar e extrair informações completas e contextualizadas sobre oportunidades de fomento à pesquisa disponíveis em sites oficiais de agências, fundações e programas de financiamento público ou privado.
+
+        Ao processar as páginas e arquivos (incluindo documentos em PDF), concentre-se em detectar, interpretar e consolidar os seguintes elementos:
+
+        Valor Global – Identifique o montante total de recursos destinados à chamada pública, edital ou programa.
+
+        Valor Máximo do Projeto – Determine o valor máximo financiável por projeto ou proposta individual.
+
+        Data Limite – Extraia a data final para submissão de propostas, incluindo eventuais prorrogações ou reaberturas.
+
+        Contrapartida – Identifique se há exigência de contrapartida financeira, institucional ou em bens/serviços, e descreva o percentual ou valor estimado quando disponível.
+
+        Índice de TRL (Technology Readiness Level) – Localize, quando mencionado, o nível de maturidade tecnológica exigido ou estimado para os projetos. Caso não esteja explicitamente informado, infira um TRL aproximado com base na descrição do tipo de pesquisa (ex: pesquisa básica, aplicada, protótipo, validação em ambiente operacional etc.).
+
+        Se qualquer uma das informações acima não estiver claramente explícita, aplique análise semântica contextual para inferir os valores ou categorias mais prováveis, sem sair do escopo técnico e sem extrapolar o conteúdo original.
+        Não invente dados nem utilize fontes externas além do material disponível na própria página ou documento analisado.
+
+        TEXTO PARA ANÁLISE:
         {chunk}
-        
-        Procure por:
-        1. VALOR GLOBAL: Total de recursos da chamada (ex: R$ 10 milhões, R$ 500.000.000,00)
-        2. VALOR MÁXIMO POR PROJETO: Limite por proposta individual
-        3. DATA LIMITE: Prazo final para submissão (formato DD/MM/AAAA ou DD.MM.AAAA)
-        4. CONTRAPARTIDA: Percentual que o proponente deve investir (ex: 8%, 1%)
-        5. TRL: Nível de maturidade tecnológica exigido
-        
+
         RESPONDA APENAS neste JSON exato:
         {{"Valor_Global": "valor ou Não encontrado", "Valor_Maximo_Por_Projeto": "valor ou Não encontrado", "Data_Limite_Submissao": "data ou Não encontrado", "Percentual_Contrapartida": "percentual ou Não encontrado", "Nivel_TRL_Exigido": "TRL ou Não encontrado"}}
         """
