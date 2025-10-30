@@ -21,6 +21,22 @@ class DataProcessor:
             url_original=url
         )
         
+        def _to_output_dict(chamada: ChamadaPublica) -> Dict:
+            """Converte ChamadaPublica (dataclass) para dicionário no formato esperado pela UI/CSV."""
+            return {
+                'ID': chamada.id,
+                'Nome_da_Chamada': chamada.nome_chamada,
+                'URL_Original': chamada.url_original,
+                'Valor_Global_Disponivel': chamada.valor_global,
+                'Valor_Maximo_Por_Projeto': chamada.valor_maximo_projeto,
+                'Data_Limite_Submissao': chamada.data_limite_submissao,
+                'Percentual_Contrapartida': chamada.percentual_contrapartida,
+                'Nivel_TRL_Exigido': chamada.nivel_trl_exigido,
+                'URL_PDF_Principal': chamada.url_pdf_principal,
+                'Status_Processamento': chamada.status_processamento,
+                'Data_Coleta': chamada.data_coleta
+            }
+
         try:
             # Passo 1: Acessa página
             print("🌐 Acessando página web...")
@@ -29,7 +45,7 @@ class DataProcessor:
             if not html_content:
                 resultado.status_processamento = 'Erro - Página inacessível'
                 print("   ❌ Falha no carregamento da página")
-                return resultado.__dict__
+                return _to_output_dict(resultado)
             
             # Passo 2: Extrai título
             print("\n🤖 Analisando conteúdo do site...")
@@ -43,7 +59,7 @@ class DataProcessor:
             if not pdf_urls:
                 resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
                 print("   ⚠️ Nenhum PDF relevante encontrado")
-                return resultado.__dict__
+                return _to_output_dict(resultado)
             
             # Passo 4: Analisa PDF principal
             main_pdf = pdf_urls[0]
@@ -56,7 +72,7 @@ class DataProcessor:
             if not pdf_text:
                 resultado.status_processamento = 'Erro - PDF não legível'
                 print("   ❌ Não foi possível ler o PDF")
-                return resultado.__dict__
+                return _to_output_dict(resultado)
             
             # Passo 5: Análise com IA
             print(f"\n🤖 ANÁLISE INTELIGENTE DO PDF:")
@@ -70,10 +86,9 @@ class DataProcessor:
             
             resultado.status_processamento = 'Concluído com sucesso'
             print(f"\n✅ PROCESSAMENTO CONCLUÍDO")
-            
-            return resultado.__dict__
+            return _to_output_dict(resultado)
             
         except Exception as e:
             resultado.status_processamento = f'Erro - {str(e)[:100]}'
             print(f"\n❌ Erro no processamento: {e}")
-            return resultado.__dict__
+            return _to_output_dict(resultado)

@@ -5,6 +5,7 @@ Sistema modularizado para extração e análise de editais da FINEP
 """
 
 import os
+import argparse
 from datetime import datetime
 
 # Importações dos nossos módulos
@@ -14,130 +15,155 @@ from utils.csv_handler import CSVHandler
 from models.schemas import LinkConfig
 from config.settings import USE_PLAYWRIGHT
 
-def get_user_links() -> list:
-    """Permite ao usuário registrar links para análise"""
-    print("\n📋 CONFIGURAÇÃO DE LINKS PARA ANÁLISE")
-    print("="*50)
-    
-    # Links padrão já configurados
-    links_default = [
-        LinkConfig(
-            titulo='Chamada Nordeste',
-            url='https://www.finep.gov.br/chamadas-publicas/chamadapublica/759'
-        ),
-        LinkConfig(
-            titulo='FIP Transição Energética', 
-            url='https://www.finep.gov.br/chamadas-publicas/chamadapublica/760'
-        )
-    ]
-    
-    print(f"🔗 Links padrão já configurados: {len(links_default)}")
-    for i, link in enumerate(links_default, 1):
-        print(f"   {i}. {link.titulo}")
-        print(f"      URL: {link.url}")
-    
-    print("\n" + "="*50)
-    print("OPÇÕES:")
-    print("1. Usar apenas os links padrão")
-    print("2. Adicionar novos links aos padrão")
-    print("3. Usar apenas novos links (ignorar padrão)")
-    
-    while True:
-        try:
-            opcao = input("\n👆 Escolha uma opção (1-3): ").strip()
-            if opcao in ['1', '2', '3']:
-                break
+# Pasta padrão onde o usuário pode colocar a planilha de links
+# usar pasta 'Links' na raiz do projeto
+# LINKS_FOLDER = os.path.join(os.path.dirname(__file__), 'Links')
+
+# OU caminho absoluto no seu Windows (exemplo)
+LINKS_FOLDER = r"C:\Users\fmcorreia.SISTEMAFIRJAN\Desktop\web-scraping-finep\Links\meu_arquivo.xlsx"
+os.makedirs(LINKS_FOLDER, exist_ok=True)
+
+
+def _find_links_file(search_path: str = None) -> str:
+    """Procura automaticamente por um arquivo de links.
+    Se um caminho for fornecido, valida e retorna. Caso contrário, busca na pasta LINKS_FOLDER.
+    Prioriza: links.xlsx, links.xls, links.csv; retorna caminho ou string vazia.
+    """
+    import glob
+    base = search_path or LINKS_FOLDER
+    # If a file path was provided and it exists, return it (if file)
+    if search_path:
+        if os.path.exists(search_path):
+            # if it's a directory, search inside it
+            if os.path.isdir(search_path):
+                base = search_path
             else:
-                print("❌ Opção inválida! Digite 1, 2 ou 3.")
-        except KeyboardInterrupt:
-            print("\n❌ Operação cancelada pelo usuário")
-            return links_default
-    
-    if opcao == '1':
-        print("✅ Usando links padrão")
-        return links_default
-    
-    # Para opções 2 e 3, coletar novos links
-    novos_links = []
-    
-    print(f"\n📝 ADICIONANDO NOVOS LINKS")
-    print("💡 Dica: Digite 'fim' quando terminar de adicionar links")
-    print("-" * 50)
-    
-    contador = 1
-    while True:
-        print(f"\n🔗 LINK {contador}:")
-        
-        try:
-            # Coleta título
-            titulo = input("   📋 Título/Nome da chamada: ").strip()
-            if titulo.lower() == 'fim':
-                break
-            
-            if not titulo:
-                print("   ⚠️ Título não pode estar vazio!")
-                continue
-            
-            # Coleta URL
-            url = input("   🌐 URL completa: ").strip()
-            if url.lower() == 'fim':
-                break
-                
-            if not url:
-                print("   ⚠️ URL não pode estar vazia!")
-                continue
-                
-            # Validação básica da URL
-            if not url.startswith(('http://', 'https://')):
-                print("   ⚠️ URL deve começar com http:// ou https://")
-                continue
-            
-            # Adiciona o novo link
-            novos_links.append(LinkConfig(
-                titulo=titulo,
-                url=url
-            ))
-            
-            print(f"   ✅ Link {contador} adicionado: {titulo}")
-            contador += 1
-            
-            # Pergunta se quer continuar
-            if contador > 10:  # Limite de segurança
-                continuar = input("\n   ❓ Adicionar mais links? (s/n): ").lower()
-                if continuar not in ['s', 'sim', 'y', 'yes']:
-                    break
-                    
-        except KeyboardInterrupt:
-            print("\n❌ Adição de links cancelada")
-            break
-    
-    # Combina links conforme a opção escolhida
-    if opcao == '2':
-        # Adicionar aos padrão
-        links_finais = links_default + novos_links
-        print(f"\n✅ Total de links: {len(links_finais)} ({len(links_default)} padrão + {len(novos_links)} novos)")
-    else:
-        # Usar apenas novos (opção 3)
-        links_finais = novos_links
-        print(f"\n✅ Total de links: {len(links_finais)} (apenas novos links)")
-    
-    # Exibe resumo final
-    if links_finais:
-        print(f"\n📋 LINKS CONFIGURADOS PARA ANÁLISE:")
-        print("-" * 50)
-        for i, link in enumerate(links_finais, 1):
-            print(f"{i}. {link.titulo}")
-            print(f"   🔗 {link.url}")
-        
-        confirmar = input(f"\n✅ Confirma análise de {len(links_finais)} link(s)? (s/n): ").lower()
-        if confirmar in ['s', 'sim', 'y', 'yes']:
-            return links_finais
+                return search_path
         else:
-            print("❌ Análise cancelada pelo usuário")
-            return []
+            return ""
+    # Also check for a folder named 'Links' (case-insensitive) at project root
+    project_root = os.path.dirname(__file__)
+    for candidate in os.listdir(project_root):
+        if candidate.lower() == 'links' and os.path.isdir(os.path.join(project_root, candidate)):
+            # prefer user-provided folder LINKS_FOLDER, but allow 'Links' if it exists
+            if base == LINKS_FOLDER:
+                base = os.path.join(project_root, candidate)
+            break
+    patterns = [
+        os.path.join(base, "meuarquivo.xlsx"),
+        os.path.join(base, "meus_links.xlsx"),
+        os.path.join(base, "*.xlsx"),
+        os.path.join(base, "*.csv"),
+    ]
+    candidates = []
+    for pattern in patterns:
+        candidates.extend(glob.glob(pattern))
+    return candidates[0] if candidates else ""
+
+
+def _read_links_from_file(path: str) -> list:
+    """Lê uma planilha (Excel ou CSV) e retorna lista de LinkConfig.
+    Procura automaticamente colunas com 'link'/'url' e 'titulo'/'title'.
+    """
+    links = []
+    try:
+        import pandas as pd
+    except Exception:
+        pd = None
+
+    def _normalize_header(h: str) -> str:
+        return h.strip().lower() if isinstance(h, str) else ""
+
+    if not path:
+        return links
+
+    try:
+        if path.lower().endswith('.csv'):
+            if pd:
+                df = pd.read_csv(path)
+            else:
+                import csv as _csv
+                with open(path, newline='', encoding='utf-8') as f:
+                    reader = _csv.reader(f)
+                    rows = list(reader)
+                if not rows:
+                    return links
+                headers = rows[0]
+                data_rows = rows[1:]
+                # find url column
+                url_idx = None
+                title_idx = None
+                for i, h in enumerate(headers):
+                    lh = _normalize_header(h)
+                    if 'link' in lh or 'url' in lh or 'site' in lh:
+                        url_idx = i
+                    if 'title' in lh or 'titulo' in lh or 'nome' in lh:
+                        title_idx = i
+                for r in data_rows:
+                    if url_idx is None:
+                        # try every cell
+                        url = next((c for c in r if isinstance(c, str) and c.startswith('http')), '')
+                    else:
+                        url = r[url_idx] if url_idx < len(r) else ''
+                    title = r[title_idx] if title_idx and title_idx < len(r) else url
+                    if url and str(url).strip():
+                        links.append(LinkConfig(titulo=str(title).strip(), url=str(url).strip()))
+                return links
+        else:
+            # Excel
+            if pd:
+                df = pd.read_excel(path)
+            else:
+                # openpyxl could be used, but require pandas simplifies; return empty if not available
+                return links
+
+        # If we have a DataFrame, try to locate columns
+        if pd is not None:
+            cols = list(df.columns)
+            url_col = None
+            title_col = None
+            for c in cols:
+                lc = _normalize_header(c)
+                if any(k in lc for k in ('link', 'url', 'site', 'website')) and url_col is None:
+                    url_col = c
+                if any(k in lc for k in ('titulo', 'title', 'nome', 'name')) and title_col is None:
+                    title_col = c
+            if url_col is None and cols:
+                # fallback: first column that looks like url
+                for c in cols:
+                    sample = df[c].dropna().astype(str).head(10).tolist()
+                    if any(s.startswith('http') for s in sample):
+                        url_col = c
+                        break
+            for _, row in df.iterrows():
+                url = str(row[url_col]).strip() if url_col in df.columns else ''
+                title = str(row[title_col]).strip() if (title_col in df.columns) else url
+                if url and url.lower().startswith('http'):
+                    links.append(LinkConfig(titulo=title or url, url=url))
+    except Exception as e:
+        print(f"⚠️ Erro ao ler arquivo de links '{path}': {e}")
+
+    return links
+
+
+def get_user_links(links_path: str = None) -> list:
+    """Lê links para análise a partir de uma planilha no diretório do projeto.
+    Procura automaticamente arquivos 'links.*'. Se não encontrar, informa o usuário e retorna lista vazia.
+    """
+    print("\n📋 CARREGANDO LINKS A PARTIR DE PLANILHA")
+    print("="*50)
+    path = _find_links_file(links_path)
+    if not path:
+        print(f"⚠️ Nenhum arquivo 'links.xlsx' ou 'links.csv' encontrado. Coloque o arquivo na pasta: {LINKS_FOLDER} ou use --links <caminho>.")
+        return []
+
+    print(f"🔗 Lendo links do arquivo: {path}")
+    links = _read_links_from_file(path)
+    if not links:
+        print("⚠️ Nenhum link válido encontrado no arquivo.")
     else:
-        print("⚠️ Nenhum link configurado")
-        return links_default
+        print(f"✅ {len(links)} links carregados para análise")
+    return links
 
 def display_final_summary(resultados: list):
     """Exibe resumo final dos resultados"""
@@ -159,6 +185,10 @@ def main():
     print("🚀 FINEP - SISTEMA DE ANÁLISE DE CHAMADAS PÚBLICAS")
     print("🤖 Versão Modularizada - Manutenção Facilitada")
     print("="*70)
+    # CLI: permite informar um arquivo de links alternativo
+    parser = argparse.ArgumentParser(description='Analisador de Chamadas Públicas - FINEP')
+    parser.add_argument('--links', '-l', help='Caminho para arquivo de links (xlsx ou csv) ou pasta contendo o arquivo')
+    args = parser.parse_args()
     
     # Verificações iniciais
     try:
@@ -187,8 +217,8 @@ def main():
     else:
         print("ℹ️ Nenhum arquivo antigo encontrado")
     
-    # Coleta links do usuário
-    chamadas = get_user_links()
+    # Coleta links do arquivo (ou via --links)
+    chamadas = get_user_links(args.links)
     
     if not chamadas:
         print("❌ Nenhum link para analisar. Encerrando...")
