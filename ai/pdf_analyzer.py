@@ -1,5 +1,14 @@
+import os
+import sys
 import re
 from typing import Dict, List
+
+# Ensure project root is on sys.path when running this file directly (python ai/pdf_analyzer.py)
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from ai.openai_client import OpenAIClient
 from utils.text_processor import split_text_intelligently, safe_json_parse
 
@@ -82,7 +91,7 @@ class PDFAnalyzer:
         """Processa um chunk com IA"""
         try:
             response = self.openai_client.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.0-turbo",
                 messages=[
                     {"role": "system", "content": "Retorne APENAS JSON válido."},
                     {"role": "user", "content": prompt}

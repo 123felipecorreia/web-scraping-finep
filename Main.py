@@ -5,7 +5,6 @@ Sistema modularizado para extração e análise de editais da FINEP
 """
 
 import os
-import argparse
 from datetime import datetime
 
 # Importações dos nossos módulos
@@ -15,12 +14,8 @@ from utils.csv_handler import CSVHandler
 from models.schemas import LinkConfig
 from config.settings import USE_PLAYWRIGHT  # Corrigido: Config com C maiúsculo
 
-# Pasta padrão onde o usuário pode colocar a planilha de links
-# usar pasta 'Links' na raiz do projeto
-# LINKS_FOLDER = os.path.join(os.path.dirname(__file__), 'Links')
-
-# OU caminho absoluto no seu Windows (exemplo)
-LINKS_FOLDER = r"C:\Users\fmcorreia.SISTEMAFIRJAN\Desktop\web-scraping-finep\Links\Sites_de_fomento.xlsx"
+# Pasta padrão onde o usuário pode colocar a planilha de links (diretório)
+LINKS_FOLDER = os.path.join(os.path.dirname(__file__), 'Links')
 os.makedirs(LINKS_FOLDER, exist_ok=True)
 
 
@@ -30,34 +25,53 @@ def _find_links_file(search_path: str = None) -> str:
     Prioriza: links.xlsx, links.xls, links.csv; retorna caminho ou string vazia.
     """
     import glob
-    base = search_path or LINKS_FOLDER
-    # If a file path was provided and it exists, return it (if file)
+    project_root = os.path.dirname(__file__)
+
+    # Build a list of directories/files to search, in order of preference
+    bases = []
+
+    # If user passed a path, accept it (file) or search inside (dir)
     if search_path:
         if os.path.exists(search_path):
-            # if it's a directory, search inside it
             if os.path.isdir(search_path):
-                base = search_path
+                bases.append(search_path)
             else:
                 return search_path
         else:
             return ""
-    # Also check for a folder named 'Links' (case-insensitive) at project root
-    project_root = os.path.dirname(__file__)
+
+
+    # If there's a 'data' folder, prefer it (user indicated files live there)
+    data_dir = os.path.join(project_root, 'data')
+    if os.path.isdir(data_dir):
+        bases.append(data_dir)
+
+    # Default candidate directories (Links folder, then project root)
+    bases.append(LINKS_FOLDER)
+
+    # If there's a 'Links' folder in project root (case-insensitive), consider it
     for candidate in os.listdir(project_root):
         if candidate.lower() == 'links' and os.path.isdir(os.path.join(project_root, candidate)):
-            # prefer user-provided folder LINKS_FOLDER, but allow 'Links' if it exists
-            if base == LINKS_FOLDER:
-                base = os.path.join(project_root, candidate)
+            bases.append(os.path.join(project_root, candidate))
             break
-    patterns = [
-        os.path.join(base, "meuarquivo.xlsx"),
-        os.path.join(base, "meus_links.xlsx"),
-        os.path.join(base, "*.xlsx"),
-        os.path.join(base, "*.csv"),
-    ]
+
+    # Finally, consider the project root itself (in case the file is placed at repo root)
+    bases.append(project_root)
+
+    # Search for common filenames / patterns in each base
+    patterns = []
+    for base in bases:
+        patterns.extend([
+            os.path.join(base, "meuarquivo.xlsx"),
+            os.path.join(base, "meus_links.xlsx"),
+            os.path.join(base, "*.xlsx"),
+            os.path.join(base, "*.csv"),
+        ])
+
     candidates = []
     for pattern in patterns:
         candidates.extend(glob.glob(pattern))
+
     return candidates[0] if candidates else ""
 
 
@@ -146,24 +160,19 @@ def _read_links_from_file(path: str) -> list:
     return links
 
 
-def get_user_links(links_path: str = None) -> list:
-    """Lê links para análise a partir de uma planilha no diretório do projeto.
-    Procura automaticamente arquivos 'links.*'. Se não encontrar, informa o usuário e retorna lista vazia.
-    """
-    print("\n📋 CARREGANDO LINKS A PARTIR DE PLANILHA")
-    print("="*50)
-    path = _find_links_file(links_path)
-    if not path:
-        print(f"⚠️ Nenhum arquivo 'links.xlsx' ou 'links.csv' encontrado. Coloque o arquivo na pasta: {LINKS_FOLDER} ou use --links <caminho>.")
-        return []
-
-    print(f"🔗 Lendo links do arquivo: {path}")
-    links = _read_links_from_file(path)
-    if not links:
-        print("⚠️ Nenhum link válido encontrado no arquivo.")
-    else:
-        print(f"✅ {len(links)} links carregados para análise")
-    return links
+def get_user_links() -> list:
+    """Retorna 2 links de teste (modo simplificado, sem planilha)."""
+    print("\n🔗 Usando 2 links de teste (modo simplificado)")
+    return [
+        LinkConfig(
+            titulo="FINEP - Chamadas Públicas",
+            url="https://www.finep.gov.br/chamadas-publicas"
+        ),
+        LinkConfig(
+            titulo="FINEP - Página Inicial",
+            url="http://www.finep.gov.br/chamadas-publicas/chamadapublica/761"
+        ),
+    ]
 
 def display_final_summary(resultados: list):
     """Exibe resumo final dos resultados"""
@@ -186,11 +195,7 @@ def main():
     print("🚀 FINEP - SISTEMA DE ANÁLISE DE CHAMADAS PÚBLICAS")
     print("🤖 Versão Modularizada - Manutenção Facilitada")
     print("="*70)
-    # CLI: permite informar um arquivo de links alternativo
-    parser = argparse.ArgumentParser(description='Analisador de Chamadas Públicas - FINEP')
-    parser.add_argument('--links', '-l', help='Caminho para arquivo de links (xlsx ou csv) ou pasta contendo o arquivo')
-    args = parser.parse_args()
-    
+
     # Verificações iniciais
     try:
         from openai import OpenAI
@@ -218,9 +223,8 @@ def main():
     else:
         print("ℹ️ Nenhum arquivo antigo encontrado")
     
-    # Coleta links do arquivo (ou via --links)
-    chamadas = get_user_links(args.links)
-    
+    # Coleta 2 links de teste
+    chamadas = get_user_links()
     if not chamadas:
         print("❌ Nenhum link para analisar. Encerrando...")
         return

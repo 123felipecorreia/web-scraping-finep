@@ -22,19 +22,19 @@ class DataProcessor:
         )
         
         def _to_output_dict(chamada: ChamadaPublica) -> Dict:
-            """Converte ChamadaPublica (dataclass) para dicionário no formato esperado pela UI/CSV."""
+            """Converte ChamadaPublica para dicionário usando as chaves snake_case do schema."""
             return {
-                'ID': chamada.id,
-                'Nome_da_Chamada': chamada.nome_chamada,
-                'URL_Original': chamada.url_original,
-                'Valor_Global_Disponivel': chamada.valor_global,
-                'Valor_Maximo_Por_Projeto': chamada.valor_maximo_projeto,
-                'Data_Limite_Submissao': chamada.data_limite_submissao,
-                'Percentual_Contrapartida': chamada.percentual_contrapartida,
-                'Nivel_TRL_Exigido': chamada.nivel_trl_exigido,
-                'URL_PDF_Principal': chamada.url_pdf_principal,
-                'Status_Processamento': chamada.status_processamento,
-                'Data_Coleta': chamada.data_coleta
+                'id': chamada.id,
+                'nome_chamada': chamada.nome_chamada,
+                'url_original': chamada.url_original,
+                'valor_global': chamada.valor_global,
+                'valor_maximo_projeto': chamada.valor_maximo_projeto,
+                'data_limite_submissao': chamada.data_limite_submissao,
+                'percentual_contrapartida': chamada.percentual_contrapartida,
+                'nivel_trl_exigido': chamada.nivel_trl_exigido,
+                'url_pdf_principal': chamada.url_pdf_principal,
+                'status_processamento': chamada.status_processamento,
+                'data_coleta': chamada.data_coleta,
             }
 
         try:
@@ -57,9 +57,14 @@ class DataProcessor:
             print("\n🔍 Buscando documentos PDF...")
             pdf_urls = self.web_scraper.find_pdf_links(html_content, url)
             if not pdf_urls:
-                resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
-                print("   ⚠️ Nenhum PDF relevante encontrado")
-                return _to_output_dict(resultado)
+                # Tenta busca de 1 nível em links relacionados (edital/chamada/etc)
+                deep_pdfs = self.web_scraper.find_pdf_links_deep(html_content, url)
+                if deep_pdfs:
+                    pdf_urls = deep_pdfs
+                else:
+                    resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
+                    print("   ⚠️ Nenhum PDF relevante encontrado")
+                    return _to_output_dict(resultado)
             
             # Passo 4: Analisa PDF principal
             main_pdf = pdf_urls[0]

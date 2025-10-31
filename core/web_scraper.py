@@ -92,6 +92,47 @@ class WebScraper:
         except Exception as e:
             print(f"   ❌ Erro na busca de PDFs: {e}")
             return []
+
+    def find_pdf_links_deep(self, html_content: str, base_url: str, max_candidates: int = 6) -> List[str]:
+        """Faz uma busca de 1 nível: segue links relevantes e procura PDFs na página de destino."""
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            candidates: List[str] = []
+            keywords = ['edital', 'chamada', 'regulamento', 'anexo', 'resultado', 'publica', 'seleção', 'proposta']
+
+            for a in soup.find_all('a', href=True):
+                href = a.get('href')
+                text = (a.get_text(strip=True) or '').lower()
+                url = urljoin(base_url, href)
+                if any(k in text for k in keywords) or any(k in href.lower() for k in keywords):
+                    candidates.append(url)
+
+            # Dedup e limita
+            seen = set()
+            filtered = []
+            for url in candidates:
+                if url not in seen:
+                    seen.add(url)
+                    filtered.append(url)
+                if len(filtered) >= max_candidates:
+                    break
+
+            if filtered:
+                print(f"   🔎 Buscando PDFs em links relacionados ({len(filtered)} candidatos)...")
+
+            for i, url in enumerate(filtered, 1):
+                print(f"      ↪️ [{i}/{len(filtered)}] {url}")
+                content = self.get_page_content(url)
+                if not content:
+                    continue
+                found = self.find_pdf_links(content, url)
+                if found:
+                    return found
+
+            return []
+        except Exception as e:
+            print(f"   ❌ Erro na busca profunda de PDFs: {e}")
+            return []
     
     def extract_pdf_text(self, pdf_url: str) -> str:
         """Extrai texto de PDF"""
