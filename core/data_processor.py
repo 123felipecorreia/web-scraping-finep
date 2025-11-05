@@ -22,19 +22,19 @@ class DataProcessor:
         )
         
         def _to_output_dict(chamada: ChamadaPublica) -> Dict:
-            """Converte ChamadaPublica para dicionário usando as chaves snake_case do schema."""
+            """Converte ChamadaPublica (dataclass) para dicionário no formato esperado pela UI/CSV."""
             return {
-                'id': chamada.id,
-                'nome_chamada': chamada.nome_chamada,
-                'url_original': chamada.url_original,
-                'valor_global': chamada.valor_global,
-                'valor_maximo_projeto': chamada.valor_maximo_projeto,
-                'data_limite_submissao': chamada.data_limite_submissao,
-                'percentual_contrapartida': chamada.percentual_contrapartida,
-                'nivel_trl_exigido': chamada.nivel_trl_exigido,
-                'url_pdf_principal': chamada.url_pdf_principal,
-                'status_processamento': chamada.status_processamento,
-                'data_coleta': chamada.data_coleta,
+                'ID': chamada.id,
+                'Nome_da_Chamada': chamada.nome_chamada,
+                'URL_Original': chamada.url_original,
+                'Valor_Global_Disponivel': chamada.valor_global,
+                'Valor_Maximo_Por_Projeto': chamada.valor_maximo_projeto,
+                'Data_Limite_Submissao': chamada.data_limite_submissao,
+                'Percentual_Contrapartida': chamada.percentual_contrapartida,
+                'Nivel_TRL_Exigido': chamada.nivel_trl_exigido,
+                'URL_PDF_Principal': chamada.url_pdf_principal,
+                'Status_Processamento': chamada.status_processamento,
+                'Data_Coleta': chamada.data_coleta
             }
 
         try:
@@ -57,17 +57,53 @@ class DataProcessor:
             print("\n🔍 Buscando documentos PDF...")
             pdf_urls = self.web_scraper.find_pdf_links(html_content, url)
             if not pdf_urls:
-                # Tenta busca de 1 nível em links relacionados (edital/chamada/etc)
-                deep_pdfs = self.web_scraper.find_pdf_links_deep(html_content, url)
-                if deep_pdfs:
-                    pdf_urls = deep_pdfs
-                else:
-                    resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
-                    print("   ⚠️ Nenhum PDF relevante encontrado")
-                    return _to_output_dict(resultado)
+                resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
+                print("   ⚠️ Nenhum PDF relevante encontrado")
+                return _to_output_dict(resultado)
             
-            # Passo 4: Analisa PDF principal
-            main_pdf = pdf_urls[0]
+            # Passo 4: Determina qual PDF é realmente o edital (amostra e pontuação)
+            print("\n🔎 Identificando qual PDF é o edital da chamada...")
+            selected_pdf = None
+            best_conf = 0.0
+            MIN_CONF = 0.50
+
+            # Primeiro passe: classificar os PDFs diretos na página
+            for candidate in pdf_urls:
+                print(f"   ↪️ Amostrando PDF candidato: {candidate}")
+                pdf_text = self.web_scraper.extract_pdf_text(candidate)
+                if not pdf_text:
+                    print("      ⚠️ Falha ao extrair texto deste PDF (pulando)")
+                    continue
+                is_edital, conf = self.pdf_analyzer.is_pdf_edital(pdf_text, candidate)
+                print(f"      ➤ is_edital={is_edital}, confidence={conf:.2f}")
+                if is_edital and conf >= MIN_CONF and conf > best_conf:
+                    best_conf = conf
+                    selected_pdf = candidate
+
+            # Se nada com confiança suficiente foi encontrado, faça busca profunda em links relacionados e repita
+            if not selected_pdf:
+                print("   ℹ️ Nenhum PDF com confiança suficiente; executando busca profunda por candidatos relacionados...")
+                deep_candidates = self.web_scraper.find_pdf_links_deep(html_content, url, max_candidates=6)
+                for candidate in deep_candidates:
+                    print(f"   ↪️ Amostrando (deep) PDF candidato: {candidate}")
+                    pdf_text = self.web_scraper.extract_pdf_text(candidate)
+                    if not pdf_text:
+                        continue
+                    is_edital, conf = self.pdf_analyzer.is_pdf_edital(pdf_text, candidate)
+                    print(f"      ➤ is_edital={is_edital}, confidence={conf:.2f}")
+                    if is_edital and conf >= MIN_CONF and conf > best_conf:
+                        best_conf = conf
+                        selected_pdf = candidate
+
+            if not selected_pdf:
+                # fallback para primeiro encontrado, mas marca no status
+                selected_pdf = pdf_urls[0]
+                resultado.status_processamento = 'Concluído - PDF escolhido por fallback'
+                print("   ⚠️ Nenhum PDF claramente identificado como edital; usando fallback (primeiro PDF)")
+            else:
+                resultado.status_processamento = f'Concluído - PDF selecionado (conf {best_conf:.2f})'
+
+            main_pdf = selected_pdf
             resultado.url_pdf_principal = main_pdf
             
             print(f"\n📋 Analisando PDF principal:")
