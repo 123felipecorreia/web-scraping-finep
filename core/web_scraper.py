@@ -133,6 +133,91 @@ class WebScraper:
         except Exception as e:
             print(f"   ❌ Erro na busca profunda de PDFs: {e}")
             return []
+
+    def collect_all_pdfs(self, start_url: str, max_pages: int = 200, max_depth: int = 3) -> List[str]:
+        """Percorre o site (mesmo domínio) começando em start_url e coleta TODOS os links .pdf encontrados.
+        Limita por número de páginas e profundidade para evitar varreduras infinitas.
+        Retorna lista deduplicada de URLs absolutos para arquivos PDF.
+        """
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(start_url)
+            base_netloc = parsed.netloc.lower()
+            if base_netloc.startswith('www.'):
+                base_netloc = base_netloc[4:]
+
+            visited_pages = set()
+            found_pdfs = []
+            queue = [(start_url, 0)]
+            pages_seen = 0
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+
+            while queue and pages_seen < max_pages:
+                url, depth = queue.pop(0)
+                if url in visited_pages:
+                    continue
+                visited_pages.add(url)
+
+                if depth > max_depth:
+                    continue
+
+                try:
+                    resp = requests.get(url, timeout=30, headers=headers)
+                    resp.raise_for_status()
+                    html = resp.text
+                except Exception:
+                    continue
+
+                pages_seen += 1
+                print(f"   🌐 [{pages_seen}] Varredura: {url} (depth {depth})")
+
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # coletar PDFs nesta página
+                for a_tag in soup.find_all('a', href=True):
+                    href = a_tag.get('href')
+                    if not href:
+                        continue
+                    full = urljoin(url, href)
+                    if '.pdf' in full.lower():
+                        if full not in found_pdfs:
+                            found_pdfs.append(full)
+
+                # enfileirar links internos para seguir
+                if depth < max_depth:
+                    for a_tag in soup.find_all('a', href=True):
+                        href = a_tag.get('href')
+                        if not href:
+                            continue
+                        full = urljoin(url, href)
+                        # simplificar netloc check
+                        try:
+                            p = urlparse(full)
+                            netloc = p.netloc.lower()
+                            if netloc.startswith('www.'):
+                                netloc = netloc[4:]
+                        except Exception:
+                            continue
+
+                        # seguir apenas se permanecer no mesmo domínio
+                        if netloc.endswith(base_netloc) and full not in visited_pages:
+                            # evitar adicionar arquivos binários e anchors
+                            path = p.path.lower()
+                            if any(path.endswith(ext) for ext in ['.pdf', '.jpg', '.png', '.zip', '.exe']):
+                                continue
+                            if full.startswith('#'):
+                                continue
+                            queue.append((full, depth + 1))
+
+            print(f"   📎 Total de PDFs coletados no domínio: {len(found_pdfs)}")
+            return found_pdfs
+        except Exception as e:
+            print(f"   ❌ Erro na coleta de PDFs do site: {e}")
+            return []
     
     def extract_pdf_text(self, pdf_url: str) -> str:
         """Extrai texto de PDF"""

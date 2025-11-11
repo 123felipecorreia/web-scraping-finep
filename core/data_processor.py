@@ -53,12 +53,12 @@ class DataProcessor:
             if site_analysis and site_analysis.get('titulo') != 'Não encontrado':
                 resultado.nome_chamada = site_analysis['titulo']
             
-            # Passo 3: Busca PDFs
-            print("\n🔍 Buscando documentos PDF...")
-            pdf_urls = self.web_scraper.find_pdf_links(html_content, url)
+            # Passo 3: Busca todos os PDFs no site (varredura de domínio)
+            print("\n🔍 Buscando TODOS os documentos PDF no site (varredura de domínio)...")
+            pdf_urls = self.web_scraper.collect_all_pdfs(url, max_pages=200, max_depth=3)
             if not pdf_urls:
-                resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
-                print("   ⚠️ Nenhum PDF relevante encontrado")
+                resultado.status_processamento = 'Concluído - Sem PDFs encontrados no site'
+                print("   ⚠️ Nenhum PDF encontrado no domínio")
                 return _to_output_dict(resultado)
             
             # Passo 4: Determina qual PDF é realmente o edital (amostra e pontuação)
