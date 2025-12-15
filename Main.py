@@ -169,8 +169,8 @@ def get_user_links() -> list:
             url="https://www.finep.gov.br/chamadas-publicas"
         ),
         LinkConfig(
-            titulo="FINEP - Página Inicial",
-            url="http://www.finep.gov.br/chamadas-publicas/chamadapublica/761"
+            titulo="Faperj",
+            url="https://www.faperj.br/?id=28.5.7"
         ),
     ]
 

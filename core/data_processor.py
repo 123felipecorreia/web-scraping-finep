@@ -60,6 +60,37 @@ class DataProcessor:
                 resultado.status_processamento = 'Concluído - Sem PDFs encontrados no site'
                 print("   ⚠️ Nenhum PDF encontrado no domínio")
                 return _to_output_dict(resultado)
+            # Filtragem leve: reduzir candidatos usando ano corrente e nome do projeto (titulo_inicial)
+            try:
+                import os
+                import urllib.parse as urlparse
+                from datetime import datetime
+
+                year = str(datetime.utcnow().year)
+                project_token = (titulo_inicial or '').lower()
+
+                primary = []
+                for u in pdf_urls:
+                    fn = os.path.basename(urlparse.urlparse(u).path or '').lower()
+                    if (year and year in fn) or (project_token and project_token in fn):
+                        primary.append(u)
+
+                if primary:
+                    print(f"   🔎 Filtragem aplicada: {len(primary)} candidatos correspondem ao ano {year} ou ao nome do projeto")
+                    pdf_urls = primary
+                else:
+                    # se nada bateu, aplicar filtro apenas por ano
+                    year_only = [u for u in pdf_urls if year in (os.path.basename(urlparse.urlparse(u).path or '').lower())]
+                    if year_only:
+                        print(f"   🔎 Filtragem por ano retornou {len(year_only)} candidatos")
+                        pdf_urls = year_only
+                    else:
+                        # fallback: limitar a primeiros 20 para não processar tudo
+                        print(f"   ⚠️ Nenhum arquivo filtrado por ano/nome do projeto; limitando candidatos a {min(20, len(pdf_urls))} itens")
+                        pdf_urls = pdf_urls[:20]
+            except Exception:
+                # se qualquer erro, mantenha pdf_urls originais (mas limite)
+                pdf_urls = pdf_urls[:20]
             
             # Passo 4: Determina qual PDF é realmente o edital (amostra e pontuação)
             print("\n🔎 Identificando qual PDF é o edital da chamada...")

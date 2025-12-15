@@ -25,7 +25,6 @@ try:
     import docx
 except Exception:
     docx = None
-
 # Ensure project root is on sys.path when running this file directly (python ai/pdf_analyzer.py)
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_CURRENT_DIR)
@@ -79,7 +78,6 @@ class PDFAnalyzer:
             return html
         soup = BeautifulSoup(html, "lxml")
         return soup.get_text(separator="\n")
-    
     def analyze_pdf_with_ai_robust(self, pdf_text: str) -> Dict:
         """Análise de PDF otimizada"""
         if not self.openai_client.is_available():
@@ -126,7 +124,7 @@ class PDFAnalyzer:
 
     from typing import Tuple
 
-    def is_pdf_edital(self, pdf_text: str, pdf_url: str = "") -> Tuple[bool, float]:
+    def is_pdf_edital(self, pdf_text: str, pdf_url: str = "", project_name: str = "") -> Tuple[bool, float]:
         """Use LLM (when available) to judge whether a PDF text is the official edital/chamada.
         Returns (is_edital: bool, confidence: float 0..1).
         This uses a focused Portuguese prompt that emphasizes distinguishing edital language
@@ -147,6 +145,29 @@ class PDFAnalyzer:
         low_text = text.lower()
         pos_count = sum(1 for k in keywords_positive if k in low_text)
         neg_count = sum(1 for k in keywords_negative if k in low_text)
+
+        # Boost/penalize based on filename, project name and year tokens
+        filename = ""
+        try:
+            p = urlparse.urlparse(pdf_url)
+            filename = os.path.basename(p.path or "")
+        except Exception:
+            filename = ""
+
+        # If project_name appears in filename or text, increase pos_count
+        if project_name:
+            pn = project_name.lower()
+            if pn in filename.lower() or pn in low_text:
+                pos_count += 2
+
+        # Prefer current year in filename/URL/text to limit scope
+        try:
+            from datetime import datetime
+            current_year = str(datetime.utcnow().year)
+            if current_year in filename or current_year in pdf_url or current_year in low_text:
+                pos_count += 1
+        except Exception:
+            current_year = None
 
         # heuristic confidence in [0,1] (pos minus neg normalized)
         heuristic_conf = max(0.0, (pos_count - neg_count) / max(len(keywords_positive), 1))
