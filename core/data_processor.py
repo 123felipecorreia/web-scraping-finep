@@ -21,6 +21,22 @@ class DataProcessor:
             url_original=url
         )
         
+        def _to_output_dict(chamada: ChamadaPublica) -> Dict:
+            """Converte ChamadaPublica (dataclass) para dicionário no formato esperado pela UI/CSV."""
+            return {
+                'id': chamada.id,
+                'nome_chamada': chamada.nome_chamada,
+                'url_original': chamada.url_original,
+                'valor_global': chamada.valor_global,
+                'valor_maximo_projeto': chamada.valor_maximo_projeto,
+                'data_limite_submissao': chamada.data_limite_submissao,
+                'percentual_contrapartida': chamada.percentual_contrapartida,
+                'nivel_trl_exigido': chamada.nivel_trl_exigido,
+                'url_pdf_principal': chamada.url_pdf_principal,
+                'status_processamento': chamada.status_processamento,
+                'data_coleta': chamada.data_coleta
+            }
+
         try:
             # Passo 1: Acessa página
             print("🌐 Acessando página web...")
@@ -29,7 +45,7 @@ class DataProcessor:
             if not html_content:
                 resultado.status_processamento = 'Erro - Página inacessível'
                 print("   ❌ Falha no carregamento da página")
-                return resultado.__dict__
+                return _to_output_dict(resultado)
             
             # Passo 2: Extrai título
             print("\n🤖 Analisando conteúdo do site...")
@@ -37,16 +53,89 @@ class DataProcessor:
             if site_analysis and site_analysis.get('titulo') != 'Não encontrado':
                 resultado.nome_chamada = site_analysis['titulo']
             
-            # Passo 3: Busca PDFs
-            print("\n🔍 Buscando documentos PDF...")
-            pdf_urls = self.web_scraper.find_pdf_links(html_content, url)
+            # Passo 3: Busca todos os PDFs no site (varredura otimizada)
+            print("\n🔍 Buscando documentos PDF no site (busca rápida)...")
+            pdf_urls = self.web_scraper.collect_all_pdfs(url, max_pages=30, max_depth=2)
             if not pdf_urls:
-                resultado.status_processamento = 'Concluído - Sem PDFs relevantes'
-                print("   ⚠️ Nenhum PDF relevante encontrado")
-                return resultado.__dict__
+                resultado.status_processamento = 'Concluído - Sem PDFs encontrados no site'
+                print("   ⚠️ Nenhum PDF encontrado no domínio")
+                return _to_output_dict(resultado)
+            # Filtragem leve: reduzir candidatos usando ano corrente e nome do projeto (titulo_inicial)
+            try:
+                import os
+                import urllib.parse as urlparse
+                from datetime import datetime
+
+                year = str(datetime.utcnow().year)
+                project_token = (titulo_inicial or '').lower()
+
+                primary = []
+                for u in pdf_urls:
+                    fn = os.path.basename(urlparse.urlparse(u).path or '').lower()
+                    if (year and year in fn) or (project_token and project_token in fn):
+                        primary.append(u)
+
+                if primary:
+                    print(f"   🔎 Filtragem aplicada: {len(primary)} candidatos correspondem ao ano {year} ou ao nome do projeto")
+                    pdf_urls = primary
+                else:
+                    # se nada bateu, aplicar filtro apenas por ano
+                    year_only = [u for u in pdf_urls if year in (os.path.basename(urlparse.urlparse(u).path or '').lower())]
+                    if year_only:
+                        print(f"   🔎 Filtragem por ano retornou {len(year_only)} candidatos")
+                        pdf_urls = year_only
+                    else:
+                        # fallback: limitar a primeiros 10 para não processar tudo
+                        print(f"   ⚠️ Nenhum arquivo filtrado por ano/nome do projeto; limitando candidatos a {min(10, len(pdf_urls))} itens")
+                        pdf_urls = pdf_urls[:10]
+            except Exception:
+                # se qualquer erro, mantenha pdf_urls originais (mas limite)
+                pdf_urls = pdf_urls[:20]
             
-            # Passo 4: Analisa PDF principal
-            main_pdf = pdf_urls[0]
+            # Passo 4: Determina qual PDF é realmente o edital (amostra e pontuação)
+            print("\n🔎 Identificando qual PDF é o edital da chamada...")
+            selected_pdf = None
+            best_conf = 0.0
+            MIN_CONF = 0.50
+
+            # Primeiro passe: classificar os PDFs diretos na página
+            print(f"\n📊 Analisando {len(pdf_urls)} PDFs candidatos...")
+            for idx, candidate in enumerate(pdf_urls, 1):
+                print(f"   ↪️ [{idx}/{len(pdf_urls)}] Amostrando: {candidate.split('/')[-1][:60]}")
+                pdf_text = self.web_scraper.extract_pdf_text(candidate)
+                if not pdf_text:
+                    print("      ⚠️ Falha ao extrair texto deste PDF (pulando)")
+                    continue
+                is_edital, conf = self.pdf_analyzer.is_pdf_edital(pdf_text, candidate)
+                print(f"      ➤ is_edital={is_edital}, confidence={conf:.2f}")
+                if is_edital and conf >= MIN_CONF and conf > best_conf:
+                    best_conf = conf
+                    selected_pdf = candidate
+
+            # Se nada com confiança suficiente foi encontrado, faça busca profunda em links relacionados e repita
+            if not selected_pdf:
+                print("   ℹ️ Nenhum PDF com confiança suficiente; executando busca profunda (limitada)...")
+                deep_candidates = self.web_scraper.find_pdf_links_deep(html_content, url, max_candidates=3)
+                for candidate in deep_candidates:
+                    print(f"   ↪️ Amostrando (deep) PDF candidato: {candidate}")
+                    pdf_text = self.web_scraper.extract_pdf_text(candidate)
+                    if not pdf_text:
+                        continue
+                    is_edital, conf = self.pdf_analyzer.is_pdf_edital(pdf_text, candidate)
+                    print(f"      ➤ is_edital={is_edital}, confidence={conf:.2f}")
+                    if is_edital and conf >= MIN_CONF and conf > best_conf:
+                        best_conf = conf
+                        selected_pdf = candidate
+
+            if not selected_pdf:
+                # fallback para primeiro encontrado, mas marca no status
+                selected_pdf = pdf_urls[0]
+                resultado.status_processamento = 'Concluído - PDF escolhido por fallback'
+                print("   ⚠️ Nenhum PDF claramente identificado como edital; usando fallback (primeiro PDF)")
+            else:
+                resultado.status_processamento = f'Concluído - PDF selecionado (conf {best_conf:.2f})'
+
+            main_pdf = selected_pdf
             resultado.url_pdf_principal = main_pdf
             
             print(f"\n📋 Analisando PDF principal:")
@@ -56,7 +145,7 @@ class DataProcessor:
             if not pdf_text:
                 resultado.status_processamento = 'Erro - PDF não legível'
                 print("   ❌ Não foi possível ler o PDF")
-                return resultado.__dict__
+                return _to_output_dict(resultado)
             
             # Passo 5: Análise com IA
             print(f"\n🤖 ANÁLISE INTELIGENTE DO PDF:")
@@ -70,10 +159,9 @@ class DataProcessor:
             
             resultado.status_processamento = 'Concluído com sucesso'
             print(f"\n✅ PROCESSAMENTO CONCLUÍDO")
-            
-            return resultado.__dict__
+            return _to_output_dict(resultado)
             
         except Exception as e:
             resultado.status_processamento = f'Erro - {str(e)[:100]}'
             print(f"\n❌ Erro no processamento: {e}")
-            return resultado.__dict__
+            return _to_output_dict(resultado)

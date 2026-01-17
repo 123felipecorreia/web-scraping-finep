@@ -12,132 +12,175 @@ from core.file_manager import cleanup_old_files
 from core.data_processor import DataProcessor
 from utils.csv_handler import CSVHandler
 from models.schemas import LinkConfig
-from config.settings import USE_PLAYWRIGHT
+
+# Importação da configuração - verifique se o arquivo existe
+try:
+    from Config.settings import USE_PLAYWRIGHT, OPENAI_API_KEY
+except ImportError:
+    # Fallback se o módulo não existir
+    USE_PLAYWRIGHT = True
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+    print("⚠️ Arquivo Config/settings.py não encontrado. Usando valores padrão.")
+
+# Pasta padrão onde o usuário pode colocar a planilha de links (diretório)
+LINKS_FOLDER = os.path.join(os.path.dirname(__file__), 'Links')
+os.makedirs(LINKS_FOLDER, exist_ok=True)
+
+
+def _find_links_file(search_path: str = None) -> str:
+    """Procura automaticamente por um arquivo de links.
+    Se um caminho for fornecido, valida e retorna. Caso contrário, busca na pasta LINKS_FOLDER.
+    Prioriza: links.xlsx, links.xls, links.csv; retorna caminho ou string vazia.
+    """
+    import glob
+    project_root = os.path.dirname(__file__)
+
+    # Build a list of directories/files to search, in order of preference
+    bases = []
+
+    # If user passed a path, accept it (file) or search inside (dir)
+    if search_path:
+        if os.path.exists(search_path):
+            if os.path.isdir(search_path):
+                bases.append(search_path)
+            else:
+                return search_path
+        else:
+            return ""
+
+
+    # If there's a 'data' folder, prefer it (user indicated files live there)
+    data_dir = os.path.join(project_root, 'data')
+    if os.path.isdir(data_dir):
+        bases.append(data_dir)
+
+    # Default candidate directories (Links folder, then project root)
+    bases.append(LINKS_FOLDER)
+
+    # If there's a 'Links' folder in project root (case-insensitive), consider it
+    for candidate in os.listdir(project_root):
+        if candidate.lower() == 'links' and os.path.isdir(os.path.join(project_root, candidate)):
+            bases.append(os.path.join(project_root, candidate))
+            break
+
+    # Finally, consider the project root itself (in case the file is placed at repo root)
+    bases.append(project_root)
+
+    # Search for common filenames / patterns in each base
+    patterns = []
+    for base in bases:
+        patterns.extend([
+            os.path.join(base, "meuarquivo.xlsx"),
+            os.path.join(base, "meus_links.xlsx"),
+            os.path.join(base, "*.xlsx"),
+            os.path.join(base, "*.csv"),
+        ])
+
+    candidates = []
+    for pattern in patterns:
+        candidates.extend(glob.glob(pattern))
+
+    return candidates[0] if candidates else ""
+
+
+def _read_links_from_file(path: str) -> list:
+    """Lê uma planilha (Excel ou CSV) e retorna lista de LinkConfig.
+    Procura automaticamente colunas com 'link'/'url' e 'titulo'/'title'.
+    """
+    links = []
+    try:
+        import pandas as pd
+    except Exception:
+        pd = None
+
+    def _normalize_header(h: str) -> str:
+        return h.strip().lower() if isinstance(h, str) else ""
+
+    if not path:
+        return links
+
+    try:
+        if path.lower().endswith('.csv'):
+            if pd:
+                df = pd.read_csv(path)
+            else:
+                import csv as _csv
+                with open(path, newline='', encoding='utf-8') as f:
+                    reader = _csv.reader(f)
+                    rows = list(reader)
+                if not rows:
+                    return links
+                headers = rows[0]
+                data_rows = rows[1:]
+                # find url column
+                url_idx = None
+                title_idx = None
+                for i, h in enumerate(headers):
+                    lh = _normalize_header(h)
+                    if 'link' in lh or 'url' in lh or 'site' in lh:
+                        url_idx = i
+                    if 'title' in lh or 'titulo' in lh or 'nome' in lh:
+                        title_idx = i
+                for r in data_rows:
+                    if url_idx is None:
+                        # try every cell
+                        url = next((c for c in r if isinstance(c, str) and c.startswith('http')), '')
+                    else:
+                        url = r[url_idx] if url_idx < len(r) else ''
+                    title = r[title_idx] if title_idx and title_idx < len(r) else url
+                    if url and str(url).strip():
+                        links.append(LinkConfig(titulo=str(title).strip(), url=str(url).strip()))
+                return links
+        else:
+            # Excel
+            if pd:
+                df = pd.read_excel(path)
+            else:
+                # openpyxl could be used, but require pandas simplifies; return empty if not available
+                return links
+
+        # If we have a DataFrame, try to locate columns
+        if pd is not None:
+            cols = list(df.columns)
+            url_col = None
+            title_col = None
+            for c in cols:
+                lc = _normalize_header(c)
+                if any(k in lc for k in ('link', 'url', 'site', 'website')) and url_col is None:
+                    url_col = c
+                if any(k in lc for k in ('titulo', 'title', 'nome', 'name')) and title_col is None:
+                    title_col = c
+            if url_col is None and cols:
+                # fallback: first column that looks like url
+                for c in cols:
+                    sample = df[c].dropna().astype(str).head(10).tolist()
+                    if any(s.startswith('http') for s in sample):
+                        url_col = c
+                        break
+            for _, row in df.iterrows():
+                url = str(row[url_col]).strip() if url_col in df.columns else ''
+                title = str(row[title_col]).strip() if (title_col in df.columns) else url
+                if url and url.lower().startswith('http'):
+                    links.append(LinkConfig(titulo=title or url, url=url))
+    except Exception as e:
+        print(f"⚠️ Erro ao ler arquivo de links '{path}': {e}")
+
+    return links
+
 
 def get_user_links() -> list:
-    """Permite ao usuário registrar links para análise"""
-    print("\n📋 CONFIGURAÇÃO DE LINKS PARA ANÁLISE")
-    print("="*50)
-    
-    # Links padrão já configurados
-    links_default = [
+    """Retorna 2 links de teste (modo simplificado, sem planilha)."""
+    print("\n🔗 Usando 2 links de teste (modo simplificado)")
+    return [
         LinkConfig(
-            titulo='Chamada Nordeste',
-            url='https://www.finep.gov.br/chamadas-publicas/chamadapublica/759'
+            titulo="FINEP - Chamadas Públicas",
+            url="https://www.finep.gov.br/chamadas-publicas"
         ),
         LinkConfig(
-            titulo='FIP Transição Energética', 
-            url='https://www.finep.gov.br/chamadas-publicas/chamadapublica/760'
-        )
+            titulo="Faperj",
+            url="https://www.faperj.br/?id=28.5.7"
+        ),
     ]
-    
-    print(f"🔗 Links padrão já configurados: {len(links_default)}")
-    for i, link in enumerate(links_default, 1):
-        print(f"   {i}. {link.titulo}")
-        print(f"      URL: {link.url}")
-    
-    print("\n" + "="*50)
-    print("OPÇÕES:")
-    print("1. Usar apenas os links padrão")
-    print("2. Adicionar novos links aos padrão")
-    print("3. Usar apenas novos links (ignorar padrão)")
-    
-    while True:
-        try:
-            opcao = input("\n👆 Escolha uma opção (1-3): ").strip()
-            if opcao in ['1', '2', '3']:
-                break
-            else:
-                print("❌ Opção inválida! Digite 1, 2 ou 3.")
-        except KeyboardInterrupt:
-            print("\n❌ Operação cancelada pelo usuário")
-            return links_default
-    
-    if opcao == '1':
-        print("✅ Usando links padrão")
-        return links_default
-    
-    # Para opções 2 e 3, coletar novos links
-    novos_links = []
-    
-    print(f"\n📝 ADICIONANDO NOVOS LINKS")
-    print("💡 Dica: Digite 'fim' quando terminar de adicionar links")
-    print("-" * 50)
-    
-    contador = 1
-    while True:
-        print(f"\n🔗 LINK {contador}:")
-        
-        try:
-            # Coleta título
-            titulo = input("   📋 Título/Nome da chamada: ").strip()
-            if titulo.lower() == 'fim':
-                break
-            
-            if not titulo:
-                print("   ⚠️ Título não pode estar vazio!")
-                continue
-            
-            # Coleta URL
-            url = input("   🌐 URL completa: ").strip()
-            if url.lower() == 'fim':
-                break
-                
-            if not url:
-                print("   ⚠️ URL não pode estar vazia!")
-                continue
-                
-            # Validação básica da URL
-            if not url.startswith(('http://', 'https://')):
-                print("   ⚠️ URL deve começar com http:// ou https://")
-                continue
-            
-            # Adiciona o novo link
-            novos_links.append(LinkConfig(
-                titulo=titulo,
-                url=url
-            ))
-            
-            print(f"   ✅ Link {contador} adicionado: {titulo}")
-            contador += 1
-            
-            # Pergunta se quer continuar
-            if contador > 10:  # Limite de segurança
-                continuar = input("\n   ❓ Adicionar mais links? (s/n): ").lower()
-                if continuar not in ['s', 'sim', 'y', 'yes']:
-                    break
-                    
-        except KeyboardInterrupt:
-            print("\n❌ Adição de links cancelada")
-            break
-    
-    # Combina links conforme a opção escolhida
-    if opcao == '2':
-        # Adicionar aos padrão
-        links_finais = links_default + novos_links
-        print(f"\n✅ Total de links: {len(links_finais)} ({len(links_default)} padrão + {len(novos_links)} novos)")
-    else:
-        # Usar apenas novos (opção 3)
-        links_finais = novos_links
-        print(f"\n✅ Total de links: {len(links_finais)} (apenas novos links)")
-    
-    # Exibe resumo final
-    if links_finais:
-        print(f"\n📋 LINKS CONFIGURADOS PARA ANÁLISE:")
-        print("-" * 50)
-        for i, link in enumerate(links_finais, 1):
-            print(f"{i}. {link.titulo}")
-            print(f"   🔗 {link.url}")
-        
-        confirmar = input(f"\n✅ Confirma análise de {len(links_finais)} link(s)? (s/n): ").lower()
-        if confirmar in ['s', 'sim', 'y', 'yes']:
-            return links_finais
-        else:
-            print("❌ Análise cancelada pelo usuário")
-            return []
-    else:
-        print("⚠️ Nenhum link configurado")
-        return links_default
 
 def display_final_summary(resultados: list):
     """Exibe resumo final dos resultados"""
@@ -146,24 +189,25 @@ def display_final_summary(resultados: list):
     print("="*80)
     
     for i, resultado in enumerate(resultados, 1):
-        print(f"\n🔸 CHAMADA {i}: {resultado['Nome_da_Chamada']}")
-        print(f"   💰 Valor Global: {resultado['Valor_Global_Disponivel']}")
-        print(f"   💰 Valor/Projeto: {resultado['Valor_Maximo_Por_Projeto']}")
-        print(f"   📅 Prazo: {resultado['Data_Limite_Submissao']}")
-        print(f"   🔄 Contrapartida: {resultado['Percentual_Contrapartida']}")
-        print(f"   📊 TRL: {resultado['Nivel_TRL_Exigido']}")
-        print(f"   📄 PDF: {resultado['URL_PDF_Principal'].split('/')[-1] if resultado['URL_PDF_Principal'] != 'Não encontrado' else 'N/A'}")
-        print(f"   ✅ Status: {resultado['Status_Processamento']}")
+        # Corrigido: usar snake_case das chaves do schema
+        print(f"\n🔸 CHAMADA {i}: {resultado.get('nome_chamada', 'N/A')}")
+        print(f"   💰 Valor Global: {resultado.get('valor_global', 'N/A')}")
+        print(f"   💰 Valor/Projeto: {resultado.get('valor_maximo_projeto', 'N/A')}")
+        print(f"   📅 Prazo: {resultado.get('data_limite_submissao', 'N/A')}")
+        print(f"   🔄 Contrapartida: {resultado.get('percentual_contrapartida', 'N/A')}")
+        print(f"   📊 TRL: {resultado.get('nivel_trl_exigido', 'N/A')}")
+        print(f"   📄 PDF: {resultado.get('url_pdf_principal', 'N/A').split('/')[-1] if resultado.get('url_pdf_principal') != 'Não encontrado' else 'N/A'}")
+        print(f"   ✅ Status: {resultado.get('status_processamento', 'N/A')}")
 
 def main():
     print("🚀 FINEP - SISTEMA DE ANÁLISE DE CHAMADAS PÚBLICAS")
     print("🤖 Versão Modularizada - Manutenção Facilitada")
     print("="*70)
-    
+
     # Verificações iniciais
     try:
         from openai import OpenAI
-        from config.settings import OPENAI_API_KEY
+        from Config.settings import OPENAI_API_KEY
         if not OPENAI_API_KEY:
             print("❌ ERRO: OpenAI API Key não configurada")
             return
@@ -187,9 +231,8 @@ def main():
     else:
         print("ℹ️ Nenhum arquivo antigo encontrado")
     
-    # Coleta links do usuário
+    # Coleta 2 links de teste
     chamadas = get_user_links()
-    
     if not chamadas:
         print("❌ Nenhum link para analisar. Encerrando...")
         return
@@ -204,9 +247,12 @@ def main():
         print('='*80)
         
         resultado = processor.process_call(chamada.url, chamada.titulo)
+        # Sobrescreve o ID com numeração sequencial
+        resultado['id'] = str(i)
         resultados.append(resultado)
         
-        print(f"\n🏁 Status Final: {resultado['Status_Processamento']}")
+        # Corrigido: usar snake_case e .get() para evitar KeyError
+        print(f"\n🏁 Status Final: {resultado.get('status_processamento', 'Status não disponível')}")
         print('='*80)
     
     # Exibe resumo
@@ -224,7 +270,7 @@ def main():
         print("   • Encoding UTF-8 com BOM para Excel")
         print("   • Todos os campos entre aspas para proteção")
         
-        # Tenta criar versão Excel também
+        # Cria versão Excel formatada
         CSVHandler.create_excel_version(resultados, csv_filename)
         
         print("\n🎉 ANÁLISE CONCLUÍDA COM SUCESSO!")

@@ -1,2 +1,3 @@
-# Configurações do projeto
-from .settings import *
+"""
+Módulo de configurações do sistema FINEP
+"""
