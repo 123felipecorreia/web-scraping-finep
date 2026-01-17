@@ -1,5 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# OpenAI API Key
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
 from openai import OpenAI
-from config.settings import OPENAI_API_KEY
 from utils.text_processor import safe_json_parse
 from typing import Dict, Optional
 
@@ -35,7 +43,7 @@ class OpenAIClient:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.0-turbo",
                 messages=[
                     {"role": "system", "content": "Retorne apenas JSON válido."},
                     {"role": "user", "content": prompt}
